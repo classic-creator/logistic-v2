@@ -1,10 +1,15 @@
-import React, { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useCompanies, useDrivers, useVehicles, useCreateTrip } from '../../services/services';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Select from '../../components/common/Select';
 import { Info, Send, Navigation, Truck } from 'lucide-react';
 import { CITIES, MATERIALS, ROUTE_DISTANCES } from './routeConstants';
+import {
+  GoogleTripRoutePicker,
+  RouteSummary,
+} from '../../components/common/GoogleRouteMap';
+import { GOOGLE_MAPS_API_KEY } from '../../components/common/googleMapsConfig';
 
 const cityOptions = CITIES.map(c => ({ value: c, label: c }));
 const materialOptions = MATERIALS.map(m => ({ value: m, label: m }));
@@ -18,6 +23,9 @@ export const CreateDispatchForm = ({ lockedVehicle, lockedDriver, onDispatched }
   const [companyId, setCompanyId] = useState('');
   const [pickupLocation, setPickupLocation] = useState('');
   const [destination, setDestination] = useState('');
+  const [pickupPlace, setPickupPlace] = useState(null);
+  const [destinationPlace, setDestinationPlace] = useState(null);
+  const [googleRoute, setGoogleRoute] = useState(null);
   const [material, setMaterial] = useState('');
   const [weight, setWeight] = useState('');
   const [distanceInput, setDistanceInput] = useState('');
@@ -47,28 +55,72 @@ export const CreateDispatchForm = ({ lockedVehicle, lockedDriver, onDispatched }
       380;
   }, [pickupLocation, destination]);
 
+  const recommendedDistance = googleRoute?.distanceKm || computedDistance || 0;
+  const recommendedDuration = googleRoute?.durationHours || (recommendedDistance > 0 ? Math.max(1, Math.round(recommendedDistance / 40)) : 0);
+
   const effectiveDistance = useMemo(
-    () => (Number(distanceInput) > 0 ? Number(distanceInput) : (computedDistance || 0)),
-    [distanceInput, computedDistance]
+    () => (Number(distanceInput) > 0 ? Number(distanceInput) : recommendedDistance),
+    [distanceInput, recommendedDistance]
   );
 
   const effectiveDuration = useMemo(
-    () => (Number(durationInput) > 0 ? Number(durationInput) : (effectiveDistance > 0 ? Math.max(1, Math.round(effectiveDistance / 40)) : 0)),
-    [durationInput, effectiveDistance]
+    () => (Number(durationInput) > 0 ? Number(durationInput) : recommendedDuration),
+    [durationInput, recommendedDuration]
   );
 
   const handleRouteChange = (field, value) => {
     setDistanceInput('');
     setDurationInput('');
+    setGoogleRoute(null);
+    if (field === 'pickup') setPickupPlace(null);
+    else setDestinationPlace(null);
     if (field === 'pickup') setPickupLocation(value);
     else setDestination(value);
   };
+
+  const handlePickupTextChange = useCallback((value) => {
+    setPickupLocation(value);
+    setPickupPlace(null);
+    setGoogleRoute(null);
+    setDistanceInput('');
+    setDurationInput('');
+  }, []);
+
+  const handleDestinationTextChange = useCallback((value) => {
+    setDestination(value);
+    setDestinationPlace(null);
+    setGoogleRoute(null);
+    setDistanceInput('');
+    setDurationInput('');
+  }, []);
+
+  const handlePickupSelect = useCallback((place) => {
+    setPickupPlace(place);
+    setPickupLocation(place.address);
+  }, []);
+
+  const handleDestinationSelect = useCallback((place) => {
+    setDestinationPlace(place);
+    setDestination(place.address);
+  }, []);
+
+  const handleGoogleRoute = useCallback((route) => {
+    setGoogleRoute(route);
+    if (route) {
+      setDistanceInput('');
+      setDurationInput('');
+    }
+  }, []);
 
   const handleSubmit = () => {
     setError('');
 
     if (!companyId || !pickupLocation || !destination || !material) {
       setError('Please fill in the customer, route and consignment details.');
+      return;
+    }
+    if (GOOGLE_MAPS_API_KEY && (!pickupPlace?.location || !destinationPlace?.location)) {
+      setError('Select both trip start and destination from the Google Maps suggestions.');
       return;
     }
     if (pickupLocation === destination) {
@@ -102,6 +154,11 @@ export const CreateDispatchForm = ({ lockedVehicle, lockedDriver, onDispatched }
       driverName: selectedDriver.name,
       pickupLocation,
       destination,
+      pickupCoordinates: pickupPlace?.location || null,
+      destinationCoordinates: destinationPlace?.location || null,
+      routeSource: googleRoute ? 'Google Maps' : 'City route estimate',
+      routeDistanceText: googleRoute?.distanceText || null,
+      routeDurationText: googleRoute?.durationText || null,
       material,
       weight: Number(weight),
       distance: dist,
@@ -114,6 +171,9 @@ export const CreateDispatchForm = ({ lockedVehicle, lockedDriver, onDispatched }
         setCompanyId('');
         setPickupLocation('');
         setDestination('');
+        setPickupPlace(null);
+        setDestinationPlace(null);
+        setGoogleRoute(null);
         setMaterial('');
         setWeight('');
         setDistanceInput('');
@@ -157,22 +217,44 @@ export const CreateDispatchForm = ({ lockedVehicle, lockedDriver, onDispatched }
       />
 
       <div className="grid grid-cols-2 gap-3">
-        <Select
-          label="Pickup City"
-          required
-          placeholder="From"
-          options={cityOptions}
-          value={pickupLocation}
-          onChange={e => handleRouteChange('pickup', e.target.value)}
-        />
-        <Select
-          label="Destination"
-          required
-          placeholder="To"
-          options={cityOptions}
-          value={destination}
-          onChange={e => handleRouteChange('destination', e.target.value)}
-        />
+        {GOOGLE_MAPS_API_KEY ? (
+          <div className="col-span-2">
+            <GoogleTripRoutePicker
+              pickup={pickupLocation}
+              destination={destination}
+              pickupPlace={pickupPlace}
+              destinationPlace={destinationPlace}
+              onPickupChange={handlePickupTextChange}
+              onDestinationChange={handleDestinationTextChange}
+              onPickupSelect={handlePickupSelect}
+              onDestinationSelect={handleDestinationSelect}
+              onRoute={handleGoogleRoute}
+            />
+            <div className="mt-2">
+              <RouteSummary route={googleRoute} />
+            </div>
+          </div>
+        ) : (
+          <>
+            <Select
+              label="Pickup City"
+              required
+              placeholder="From"
+              options={cityOptions}
+              value={pickupLocation}
+              onChange={e => handleRouteChange('pickup', e.target.value)}
+            />
+            <Select
+              label="Destination"
+              required
+              placeholder="To"
+              options={cityOptions}
+              value={destination}
+              onChange={e => handleRouteChange('destination', e.target.value)}
+            />
+            <p className="col-span-2 text-[10px] text-amber-400/80">Google route suggestions are disabled until VITE_GOOGLE_MAPS_API_KEY is configured.</p>
+          </>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -219,14 +301,14 @@ export const CreateDispatchForm = ({ lockedVehicle, lockedDriver, onDispatched }
       <div className="grid grid-cols-2 gap-3">
         <Input
           label="Distance (km)"
-          placeholder={computedDistance ? `Auto: ${computedDistance}` : 'e.g. 300'}
+          placeholder={recommendedDistance ? `Google recommends: ${recommendedDistance}` : 'e.g. 300'}
           type="number"
           value={distanceInput}
           onChange={e => setDistanceInput(e.target.value)}
         />
         <Input
           label="Est. Duration (hrs)"
-          placeholder={effectiveDistance > 0 ? `Auto: ${Math.max(1, Math.round(effectiveDistance / 40))}` : 'Auto'}
+          placeholder={googleRoute?.durationText || (effectiveDistance > 0 ? `Auto: ${Math.max(1, Math.round(effectiveDistance / 40))}` : 'Auto')}
           type="number"
           value={durationInput}
           onChange={e => setDurationInput(e.target.value)}

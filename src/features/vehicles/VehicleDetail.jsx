@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useVehicle, useTrips, useFinances, useUpdateVehicle } from '../../services/services';
 import { CardSkeleton } from '../../components/common/Skeleton';
@@ -6,7 +6,7 @@ import StatCard from '../../components/common/StatCard';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import { ArrowLeft, Truck, ShieldAlert, Award, FileText, Calendar, PlusCircle, PenTool } from 'lucide-react';
-import { 
+import {
   BarChart, 
   Bar, 
   XAxis, 
@@ -14,9 +14,9 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer,
-  LineChart,
-  Line
 } from 'recharts';
+
+const formatCurrency = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
 
 export const VehicleDetail = () => {
   const { id } = useParams();
@@ -93,6 +93,31 @@ export const VehicleDetail = () => {
       distance: value
     })).sort((a, b) => monthsOrder.indexOf(a.name) - monthsOrder.indexOf(b.name));
   }, [trips, vehicle, isDataLoading]);
+
+  const vehicleTripRows = useMemo(() => {
+    if (isDataLoading || !vehicle) return [];
+
+    const financeByTripId = new Map((finances || []).map(finance => [finance.tripId, finance]));
+
+    return (trips || [])
+      .filter(trip => trip.vehicleId === vehicle.id)
+      .map(trip => {
+        const finance = financeByTripId.get(trip.id);
+        const revenue = finance?.tripAmount || 0;
+        const expenses = finance?.totalExpenses ?? [
+          finance?.dieselExpense,
+          finance?.tollExpense,
+          finance?.driverAllowance,
+          finance?.loadingCharge,
+          finance?.unloadingCharge,
+          finance?.otherExpenses
+        ].reduce((sum, value) => sum + (value || 0), 0);
+        const profit = finance?.netProfit ?? revenue - expenses;
+
+        return { ...trip, revenue, expenses, profit };
+      })
+      .sort((a, b) => new Date(b.pickupDate || 0) - new Date(a.pickupDate || 0));
+  }, [finances, isDataLoading, trips, vehicle]);
 
   const handleAddMaintenance = (e) => {
     e.preventDefault();
@@ -283,6 +308,67 @@ export const VehicleDetail = () => {
           </div>
         </div>
 
+      </div>
+
+      {/* Maintenance Logs Section */}
+      <div className="glass-panel rounded-xl p-5 border border-slate-800 space-y-4">
+        <div className="border-b border-slate-800 pb-3">
+          <h3 className="text-sm font-bold text-slate-100 font-display flex items-center gap-1.5">
+            <FileText size={16} className="text-accent-indigo" />
+            <span>Trip Revenue & Profit Ledger</span>
+          </h3>
+          <p className="mt-1 text-xs text-slate-500">Every trip assigned to this vehicle, including driver, financials, and status.</p>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px] text-left text-xs border-collapse">
+            <thead>
+              <tr className="text-slate-500 font-bold border-b border-slate-800">
+                <th className="py-2.5">Trip / Date</th>
+                <th>Driver</th>
+                <th>Route</th>
+                <th>Load</th>
+                <th>Distance</th>
+                <th>Revenue</th>
+                <th>Expenses</th>
+                <th>Profit</th>
+                <th className="text-right">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/50">
+              {vehicleTripRows.length > 0 ? vehicleTripRows.map((trip) => (
+                <tr key={trip.id} className="text-slate-300">
+                  <td className="py-3">
+                    <span className="block font-mono font-bold text-indigo-400">{trip.id}</span>
+                    <span className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500"><Calendar size={11} />{trip.pickupDate || '—'}</span>
+                  </td>
+                  <td className="font-semibold text-slate-200">{trip.driverName || 'Unassigned'}</td>
+                  <td className="max-w-[220px] font-semibold text-slate-400">{trip.pickupLocation} → {trip.destination}</td>
+                  <td>{trip.material || '—'} <span className="text-slate-500">({trip.weight || 0}T)</span></td>
+                  <td className="font-mono">{Number(trip.distance || 0).toLocaleString('en-IN')} km</td>
+                  <td className="font-mono font-semibold text-slate-200">{formatCurrency(trip.revenue)}</td>
+                  <td className="font-mono text-amber-300">{formatCurrency(trip.expenses)}</td>
+                  <td className={`font-mono font-bold ${trip.profit >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{formatCurrency(trip.profit)}</td>
+                  <td className="text-right">
+                    <span className={`rounded px-2 py-0.5 text-[10px] font-semibold uppercase ${
+                      trip.status === 'Completed' || trip.status === 'Delivered'
+                        ? 'bg-emerald-500/10 text-accent-emerald'
+                        : trip.status === 'Cancelled'
+                          ? 'bg-slate-800 text-slate-500'
+                          : 'bg-sky-500/10 text-accent-sky'
+                    }`}>
+                      {trip.status}
+                    </span>
+                  </td>
+                </tr>
+              )) : (
+                <tr>
+                  <td colSpan="9" className="py-8 text-center font-semibold text-slate-500">No trips assigned to this vehicle yet.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Maintenance Logs Section */}

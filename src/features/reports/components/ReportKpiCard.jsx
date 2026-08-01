@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion } from 'framer-motion';
 import { ArrowUpRight, ArrowDownRight, Equal } from 'lucide-react';
 
@@ -47,8 +46,9 @@ export const ReportKpiCard = ({
   return (
     <motion.div
       whileHover={{ y: -3 }}
-      className={`glass-panel rounded-xl p-5 shadow-lg transition-all border ${c.border} ${c.glow} ${className}`}
+      className={`relative overflow-hidden rounded-2xl bg-slate-900/60 p-5 shadow-xl shadow-slate-950/20 transition-all border ${c.border} ${c.glow} ${className}`}
     >
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-white/10 to-transparent" />
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 space-y-1">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate block">

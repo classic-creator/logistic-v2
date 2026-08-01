@@ -1,12 +1,12 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { useDriver, useTrips } from '../../services/services';
+import { useDriver, useFinances, useTrips } from '../../services/services';
 import { CardSkeleton } from '../../components/common/Skeleton';
 import StatCard from '../../components/common/StatCard';
 import Button from '../../components/common/Button';
-import { ArrowLeft, User, Star, Calendar, FileText, Compass, BadgeCheck, ShieldAlert } from 'lucide-react';
-import { 
+import { ArrowLeft, Star, Calendar, FileText, Compass, BadgeCheck, ShieldAlert } from 'lucide-react';
+import {
   AreaChart, 
   Area, 
   XAxis, 
@@ -16,6 +16,8 @@ import {
   ResponsiveContainer 
 } from 'recharts';
 
+const formatCurrency = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
+
 export const DriverDetail = () => {
   const { id: paramId } = useParams();
   const { activeDriverId } = useSelector((state) => state.auth);
@@ -24,8 +26,9 @@ export const DriverDetail = () => {
 
   const { data: driver, isLoading: driverLoading } = useDriver(id);
   const { data: trips, isLoading: tripsLoading } = useTrips();
+  const { data: finances, isLoading: financesLoading } = useFinances();
 
-  const isDataLoading = driverLoading || tripsLoading;
+  const isDataLoading = driverLoading || tripsLoading || financesLoading;
 
   // Calculate statistics for this specific driver
   const driverStats = useMemo(() => {
@@ -60,9 +63,34 @@ export const DriverDetail = () => {
     // Simulate safety index scores based on whether trip was delayed
     return myTrips.slice(-8).map((t, idx) => ({
       name: `Trip ${idx + 1}`,
-      safetyScore: t.isDelayed ? 84 : Math.floor(Math.random() * 8) + 93
+      safetyScore: t.isDelayed ? 84 : 93 - (idx % 4)
     }));
   }, [trips, driver, isDataLoading]);
+
+  const driverTripRows = useMemo(() => {
+    if (isDataLoading || !driver) return [];
+
+    const financeByTripId = new Map((finances || []).map(finance => [finance.tripId, finance]));
+
+    return (trips || [])
+      .filter(trip => trip.driverId === driver.id)
+      .map(trip => {
+        const finance = financeByTripId.get(trip.id);
+        const revenue = finance?.tripAmount || 0;
+        const expenses = finance?.totalExpenses ?? [
+          finance?.dieselExpense,
+          finance?.tollExpense,
+          finance?.driverAllowance,
+          finance?.loadingCharge,
+          finance?.unloadingCharge,
+          finance?.otherExpenses
+        ].reduce((sum, value) => sum + (value || 0), 0);
+        const profit = finance?.netProfit ?? revenue - expenses;
+
+        return { ...trip, revenue, expenses, profit };
+      })
+      .sort((a, b) => new Date(b.pickupDate || 0) - new Date(a.pickupDate || 0));
+  }, [driver, finances, isDataLoading, trips]);
 
   if (isDataLoading) {
     return (
@@ -231,33 +259,43 @@ export const DriverDetail = () => {
 
       </div>
 
-      {/* Driver Historical Trip logs */}
+      {/* Driver Trip Profit Ledger */}
       <div className="glass-panel rounded-xl p-5 border border-slate-800 space-y-4">
         <h3 className="text-sm font-bold text-slate-100 font-display flex items-center gap-1.5 border-b border-slate-800 pb-3">
           <Calendar size={16} className="text-accent-indigo" />
-          <span>Assigned Trip Logsheet</span>
+          <span>Trip Revenue & Profit Ledger</span>
         </h3>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+          <table className="w-full min-w-[980px] text-left text-xs border-collapse">
             <thead>
               <tr className="text-slate-500 font-bold border-b border-slate-800">
                 <th className="py-2.5">Trip ID</th>
+                <th>Date</th>
                 <th>Company</th>
+                <th>Vehicle</th>
                 <th>Route</th>
-                <th>Material</th>
+                <th>Load</th>
                 <th>Distance</th>
+                <th>Revenue</th>
+                <th>Expenses</th>
+                <th>Profit</th>
                 <th className="text-right">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/50">
-              {trips.filter(t => t.driverId === driver.id).map((t) => (
+              {driverTripRows.map((t) => (
                 <tr key={t.id} className="text-slate-300">
                   <td className="py-3 font-mono font-bold text-indigo-400">{t.id}</td>
+                  <td className="font-mono text-slate-500">{t.pickupDate || '—'}</td>
                   <td className="font-semibold">{t.companyName}</td>
+                  <td className="font-mono text-slate-400">{t.vehicleNumber || 'Unassigned'}</td>
                   <td className="text-slate-400 font-semibold">{t.pickupLocation} → {t.destination}</td>
                   <td>{t.material} ({t.weight}T)</td>
                   <td className="font-mono">{t.distance} km</td>
+                  <td className="font-mono font-semibold text-slate-200">{formatCurrency(t.revenue)}</td>
+                  <td className="font-mono text-amber-300">{formatCurrency(t.expenses)}</td>
+                  <td className={`font-mono font-bold ${t.profit >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{formatCurrency(t.profit)}</td>
                   <td className="text-right">
                     <span className={`px-2 py-0.5 rounded font-semibold text-[10px] uppercase ${
                       t.status === 'Completed' ? 'bg-emerald-500/10 text-accent-emerald' : 'bg-sky-500/10 text-accent-sky'

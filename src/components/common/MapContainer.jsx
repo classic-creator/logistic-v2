@@ -1,7 +1,9 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { Navigation, Compass, MapPin, ZoomIn, ZoomOut, RotateCcw, Clock, ShieldAlert } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { Navigation, Compass, ZoomIn, ZoomOut, RotateCcw, Clock } from 'lucide-react';
+import { GoogleTrackingMap } from './GoogleRouteMap';
+import { GOOGLE_MAPS_API_KEY } from './googleMapsConfig';
 
-export const MapContainer = ({
+const SimulatedMap = ({
   pickup = 'Pune',
   destination = 'Mumbai',
   vehicleNumber = 'MH-12-QW-5689',
@@ -15,7 +17,6 @@ export const MapContainer = ({
 }) => {
   const [progress, setProgress] = useState(0.45); // Start at 45% along the path
   const [zoom, setZoom] = useState(1);
-  const [isHovered, setIsHovered] = useState(false);
   const mapRef = useRef(null);
 
   // Geographic mapping coordinates for our visual path representation
@@ -265,5 +266,9 @@ export const MapContainer = ({
     </div>
   );
 };
+
+export const MapContainer = (props) => (
+  GOOGLE_MAPS_API_KEY ? <GoogleTrackingMap {...props} /> : <SimulatedMap {...props} />
+);
 
 export default MapContainer;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { useTrips, useUpdateTrip } from '../../services/services';
@@ -21,6 +21,9 @@ export const TripList = () => {
   const [isDispatchOpen, setIsDispatchOpen] = useState(false);
 
   const canDispatch = ['Super Admin', 'Dispatcher', 'Operations Manager'].includes(currentRole);
+  const closedTripStatuses = ['Completed', 'Delivered', 'Cancelled'];
+  const activeTrips = (trips || []).filter(trip => !closedTripStatuses.includes(trip.status));
+  const tripHistory = (trips || []).filter(trip => closedTripStatuses.includes(trip.status));
 
   const handleOpenTrack = (e, trip) => {
     e.stopPropagation();
@@ -182,16 +185,48 @@ export const TripList = () => {
         )}
       </div>
 
-      {/* Main Table */}
+      {/* Active Trips */}
       {isLoading ? (
         <div className="h-64 flex items-center justify-center text-slate-500">Loading operational trips...</div>
       ) : (
-        <Table
-          columns={columns}
-          data={trips}
-          searchPlaceholder="Search trips by ID, vehicle, driver, status..."
-          searchFields={['id', 'vehicleNumber', 'driverName', 'pickupLocation', 'destination', 'status']}
-        />
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-extrabold uppercase tracking-wider text-slate-200">Active Trips</h2>
+              <p className="mt-1 text-xs text-slate-500">Assigned and in-transit dispatches requiring attention.</p>
+            </div>
+            <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2.5 py-1 text-[10px] font-bold text-sky-300">
+              {activeTrips.length} active
+            </span>
+          </div>
+          <Table
+            columns={columns}
+            data={activeTrips}
+            searchPlaceholder="Search active trips by ID, vehicle, driver..."
+            searchFields={['id', 'vehicleNumber', 'driverName', 'pickupLocation', 'destination', 'status']}
+          />
+        </section>
+      )}
+
+      {/* Trip History */}
+      {!isLoading && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between border-t border-slate-800 pt-6">
+            <div>
+              <h2 className="text-sm font-extrabold uppercase tracking-wider text-slate-300">Trip History</h2>
+              <p className="mt-1 text-xs text-slate-500">Completed, delivered, and cancelled dispatch records.</p>
+            </div>
+            <span className="rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1 text-[10px] font-bold text-slate-400">
+              {tripHistory.length} closed
+            </span>
+          </div>
+          <Table
+            columns={columns}
+            data={tripHistory}
+            searchPlaceholder="Search trip history..."
+            searchFields={['id', 'vehicleNumber', 'driverName', 'pickupLocation', 'destination', 'status']}
+          />
+        </section>
       )}
 
       {/* Live Tracking HUD Drawer */}
@@ -207,6 +242,9 @@ export const TripList = () => {
             <MapContainer
               pickup={trackingTrip.pickupLocation}
               destination={trackingTrip.destination}
+              pickupCoordinates={trackingTrip.pickupCoordinates}
+              destinationCoordinates={trackingTrip.destinationCoordinates}
+              currentLocation={trackingTrip.currentLocation}
               vehicleNumber={trackingTrip.vehicleNumber}
               driverName={trackingTrip.driverName}
               speed={trackingTrip.speed || 62}

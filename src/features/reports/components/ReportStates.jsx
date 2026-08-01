@@ -1,4 +1,3 @@
-import React from 'react';
 import { BarChart3, Inbox } from 'lucide-react';
 import { CardSkeleton } from '../../../components/common/Skeleton';
 
@@ -10,7 +9,7 @@ export const ReportLoading = () => (
       <CardSkeleton />
       <CardSkeleton />
     </div>
-    <div className="glass-panel rounded-xl p-5 border border-slate-800 h-[260px] flex flex-col gap-4">
+    <div className="rounded-2xl bg-slate-900/60 p-5 border border-slate-800 h-[260px] flex flex-col gap-4">
       <div className="h-5 w-48 bg-slate-800 rounded animate-pulse" />
       <div className="flex-1 bg-slate-800/40 rounded-xl animate-pulse" />
     </div>

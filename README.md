@@ -1,4 +1,33 @@
-# React + Vite
+# Logistics Transport Management System
+
+## Google Maps setup
+
+Copy `.env.example` to `.env.local` and add a Google Maps JavaScript API key with these APIs enabled:
+
+- Maps JavaScript API
+- Places API
+- Routes API
+
+The key powers Google Places recommendations for trip start/end fields, Google road-route previews, and live trip tracking. Without a key, the app keeps its city-list and simulated-map fallbacks.
+
+## Development
+
+```bash
+npm install
+npm run dev
+```
+
+## Production build
+
+```bash
+npm run build
+```
+
+<!--
+The project was initially scaffolded with Vite. The original template notes are retained below for reference.
+-->
+
+## Vite notes
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Maximize2, Minimize2, X } from 'lucide-react';
 
@@ -19,14 +19,15 @@ export const ChartCard = ({
   return (
     <>
       <div
-        className={`glass-panel rounded-xl p-5 border border-slate-800 flex flex-col transition-shadow ${
+        className={`relative overflow-hidden rounded-2xl border border-slate-800/90 bg-slate-900/55 p-5 shadow-xl shadow-slate-950/20 flex flex-col transition-all hover:border-slate-700 ${
           fullscreen ? 'opacity-0 pointer-events-none absolute' : ''
         } ${className}`}
       >
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-indigo-400/60 via-sky-400/20 to-transparent" />
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="flex items-center gap-2.5 min-w-0">
             {Icon && (
-              <div className="p-2 rounded-lg bg-slate-800/80 text-slate-400 flex-shrink-0">
+              <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-300 ring-1 ring-indigo-400/10 flex-shrink-0">
                 <Icon size={16} />
               </div>
             )}
@@ -43,6 +44,7 @@ export const ChartCard = ({
               onClick={() => setFullscreen(true)}
               className="p-1.5 text-slate-500 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
               title="Expand chart"
+              aria-label={`Expand ${title}`}
             >
               <Maximize2 size={15} />
             </button>

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Truck, Navigation } from 'lucide-react';
 import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow } from '@vis.gl/react-google-maps';
 
@@ -44,8 +44,8 @@ const SimulatedFleetMap = ({ trips }) => {
   const routeLines = useMemo(
     () =>
       trips.map((trip) => {
-        const start = cityCoordinates[trip.pickupLocation] || defaultCenter;
-        const end = cityCoordinates[trip.destination] || defaultCenter;
+        const start = trip.pickupCoordinates || cityCoordinates[trip.pickupLocation] || defaultCenter;
+        const end = trip.destinationCoordinates || cityCoordinates[trip.destination] || defaultCenter;
         const s = toSvgPoint(start.lat, start.lng);
         const e = toSvgPoint(end.lat, end.lng);
         const midX = (s.x + e.x) / 2 + 12;
@@ -152,8 +152,8 @@ export const LiveMap = ({ trips = [] }) => {
   // Generate some rough random coordinates based on the route locations for mockup purposes
   const markers = useMemo(() => {
     return trips.filter((t) => t.status === 'Running').map((trip) => {
-      const start = cityCoordinates[trip.pickupLocation] || defaultCenter;
-      const end = cityCoordinates[trip.destination] || defaultCenter;
+      const start = trip.pickupCoordinates || cityCoordinates[trip.pickupLocation] || defaultCenter;
+      const end = trip.destinationCoordinates || cityCoordinates[trip.destination] || defaultCenter;
 
       return {
         id: trip.id,

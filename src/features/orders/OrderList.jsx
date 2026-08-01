@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { 
   useOrders, 
@@ -6,16 +6,17 @@ import {
   useVehicles, 
   useDrivers, 
   useCreateOrder, 
-  useCreateTrip, 
-  useUpdateOrder 
+  useCreateTrip
 } from '../../services/services';
 import Table from '../../components/common/Table';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Select from '../../components/common/Select';
 import Modal from '../../components/common/Modal';
-import { Plus, Send, AlertCircle, Sparkles, Navigation } from 'lucide-react';
+import { Plus, Send, AlertCircle } from 'lucide-react';
 import { useForm } from 'react-hook-form';
+import { GoogleTripRoutePicker, RouteSummary } from '../../components/common/GoogleRouteMap';
+import { GOOGLE_MAPS_API_KEY } from '../../components/common/googleMapsConfig';
 
 export const OrderList = () => {
   const { currentRole } = useSelector((state) => state.auth);
@@ -27,16 +28,26 @@ export const OrderList = () => {
 
   const createOrderMutation = useCreateOrder();
   const createTripMutation = useCreateTrip();
-  const updateOrderMutation = useUpdateOrder();
-
   const [isOpen, setIsOpen] = useState(false);
   const [isAssignOpen, setIsAssignOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [pickupLocation, setPickupLocation] = useState('');
+  const [destination, setDestination] = useState('');
+  const [pickupPlace, setPickupPlace] = useState(null);
+  const [destinationPlace, setDestinationPlace] = useState(null);
+  const [googleRoute, setGoogleRoute] = useState(null);
+  const [routeError, setRouteError] = useState('');
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm();
   const { register: registerAssign, handleSubmit: handleSubmitAssign, reset: resetAssign } = useForm();
 
   const handleOpenAdd = () => {
+    setPickupLocation('');
+    setDestination('');
+    setPickupPlace(null);
+    setDestinationPlace(null);
+    setGoogleRoute(null);
+    setRouteError('');
     reset({
       companyId: '',
       pickupLocation: '',
@@ -51,27 +62,87 @@ export const OrderList = () => {
     setIsOpen(true);
   };
 
+  const handlePickupChange = useCallback((value) => {
+    setPickupLocation(value);
+    setPickupPlace(null);
+    setGoogleRoute(null);
+    setRouteError('');
+  }, []);
+
+  const handleDestinationChange = useCallback((value) => {
+    setDestination(value);
+    setDestinationPlace(null);
+    setGoogleRoute(null);
+    setRouteError('');
+  }, []);
+
+  const handlePickupSelect = useCallback((place) => {
+    setPickupLocation(place.address);
+    setPickupPlace(place);
+    setRouteError('');
+  }, []);
+
+  const handleDestinationSelect = useCallback((place) => {
+    setDestination(place.address);
+    setDestinationPlace(place);
+    setRouteError('');
+  }, []);
+
+  const handleGoogleRoute = useCallback((route) => {
+    setGoogleRoute(route);
+  }, []);
+
   const handleOpenAssign = (order) => {
     setSelectedOrder(order);
     resetAssign({
       vehicleId: '',
       driverId: '',
-      distance: 300,
-      estimatedDuration: 12
+      distance: order.routeDistanceKm || 300,
+      estimatedDuration: order.routeDurationHours || 12
     });
     setIsAssignOpen(true);
   };
 
   const onSubmit = (data) => {
-    const selectedCompany = companies.find(c => c.id === data.companyId);
+    const selectedPickup = GOOGLE_MAPS_API_KEY ? pickupLocation : data.pickupLocation;
+    const selectedDestination = GOOGLE_MAPS_API_KEY ? destination : data.destination;
+
+    if (GOOGLE_MAPS_API_KEY && (!pickupPlace?.location || !destinationPlace?.location)) {
+      setRouteError('Choose both pickup and destination from the Google Maps suggestions so the exact point is saved.');
+      return;
+    }
+
+    if (selectedPickup === selectedDestination) {
+      setRouteError('Pickup and destination must be different locations.');
+      return;
+    }
+
+    const selectedCompany = (companies || []).find(c => c.id === data.companyId);
     const orderPayload = {
       ...data,
+      pickupLocation: selectedPickup,
+      destination: selectedDestination,
+      pickupCoordinates: pickupPlace?.location || null,
+      destinationCoordinates: destinationPlace?.location || null,
+      pickupPlaceId: pickupPlace?.placeId || null,
+      destinationPlaceId: destinationPlace?.placeId || null,
+      routeSource: googleRoute ? 'Google Maps' : null,
+      routeDistanceKm: googleRoute?.distanceKm || null,
+      routeDistanceText: googleRoute?.distanceText || null,
+      routeDurationHours: googleRoute?.durationHours || null,
+      routeDurationText: googleRoute?.durationText || null,
       companyName: selectedCompany ? selectedCompany.name : ''
     };
 
     createOrderMutation.mutate(orderPayload, {
       onSuccess: () => {
         setIsOpen(false);
+        setPickupLocation('');
+        setDestination('');
+        setPickupPlace(null);
+        setDestinationPlace(null);
+        setGoogleRoute(null);
+        setRouteError('');
         reset();
       }
     });
@@ -91,6 +162,13 @@ export const OrderList = () => {
       driverName: selectedDriver.name,
       pickupLocation: selectedOrder.pickupLocation,
       destination: selectedOrder.destination,
+      pickupCoordinates: selectedOrder.pickupCoordinates || null,
+      destinationCoordinates: selectedOrder.destinationCoordinates || null,
+      pickupPlaceId: selectedOrder.pickupPlaceId || null,
+      destinationPlaceId: selectedOrder.destinationPlaceId || null,
+      routeSource: selectedOrder.routeSource || null,
+      routeDistanceText: selectedOrder.routeDistanceText || null,
+      routeDurationText: selectedOrder.routeDurationText || null,
       material: selectedOrder.material,
       weight: selectedOrder.weight,
       distance: Number(data.distance),
@@ -206,6 +284,9 @@ export const OrderList = () => {
 
   const availableVehicles = vehicles?.filter(v => v.status === 'Available') || [];
   const availableDrivers = drivers?.filter(d => d.status === 'Available') || [];
+  const closedOrderStatuses = ['Delivered', 'Completed', 'Cancelled'];
+  const activeOrders = (orders || []).filter(order => !closedOrderStatuses.includes(order.status));
+  const orderHistory = (orders || []).filter(order => closedOrderStatuses.includes(order.status));
 
   return (
     <div className="space-y-6 select-none">
@@ -227,16 +308,48 @@ export const OrderList = () => {
         )}
       </div>
 
-      {/* Main Table */}
+      {/* Active Orders */}
       {ordersLoading ? (
         <div className="h-64 flex items-center justify-center text-slate-500">Loading orders ledger...</div>
       ) : (
-        <Table
-          columns={columns}
-          data={orders}
-          searchPlaceholder="Search orders by ID, company, pickup..."
-          searchFields={['id', 'companyName', 'pickupLocation', 'destination', 'status']}
-        />
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-extrabold uppercase tracking-wider text-slate-200">Active Orders</h2>
+              <p className="mt-1 text-xs text-slate-500">Pending and in-progress customer requirements.</p>
+            </div>
+            <span className="rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-1 text-[10px] font-bold text-indigo-300">
+              {activeOrders.length} active
+            </span>
+          </div>
+          <Table
+            columns={columns}
+            data={activeOrders}
+            searchPlaceholder="Search active orders by ID, company, pickup..."
+            searchFields={['id', 'companyName', 'pickupLocation', 'destination', 'status']}
+          />
+        </section>
+      )}
+
+      {/* Order History */}
+      {!ordersLoading && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between border-t border-slate-800 pt-6">
+            <div>
+              <h2 className="text-sm font-extrabold uppercase tracking-wider text-slate-300">Order History</h2>
+              <p className="mt-1 text-xs text-slate-500">Delivered, completed, and cancelled order records.</p>
+            </div>
+            <span className="rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1 text-[10px] font-bold text-slate-400">
+              {orderHistory.length} closed
+            </span>
+          </div>
+          <Table
+            columns={columns}
+            data={orderHistory}
+            searchPlaceholder="Search order history..."
+            searchFields={['id', 'companyName', 'pickupLocation', 'destination', 'status']}
+          />
+        </section>
       )}
 
       {/* Place Order Modal */}
@@ -256,22 +369,44 @@ export const OrderList = () => {
             {...register('companyId', { required: 'Customer is required' })}
           />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input
-              label="Pickup Location"
-              placeholder="e.g. Pune City Yard"
-              required
-              error={errors.pickupLocation}
-              {...register('pickupLocation', { required: 'Pickup point is required' })}
-            />
-            <Input
-              label="Destination Point"
-              placeholder="e.g. Delhi Warehouse"
-              required
-              error={errors.destination}
-              {...register('destination', { required: 'Destination point is required' })}
-            />
-          </div>
+          {GOOGLE_MAPS_API_KEY ? (
+            <>
+              <GoogleTripRoutePicker
+                pickup={pickupLocation}
+                destination={destination}
+                pickupPlace={pickupPlace}
+                destinationPlace={destinationPlace}
+                onPickupChange={handlePickupChange}
+                onDestinationChange={handleDestinationChange}
+                onPickupSelect={handlePickupSelect}
+                onDestinationSelect={handleDestinationSelect}
+                onRoute={handleGoogleRoute}
+              />
+              <RouteSummary route={googleRoute} />
+              {routeError && (
+                <p className="rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-[11px] font-semibold text-rose-300">
+                  {routeError}
+                </p>
+              )}
+            </>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Input
+                label="Pickup Location"
+                placeholder="e.g. Pune City Yard"
+                required
+                error={errors.pickupLocation}
+                {...register('pickupLocation', { required: 'Pickup point is required' })}
+              />
+              <Input
+                label="Destination Point"
+                placeholder="e.g. Delhi Warehouse"
+                required
+                error={errors.destination}
+                {...register('destination', { required: 'Destination point is required' })}
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
