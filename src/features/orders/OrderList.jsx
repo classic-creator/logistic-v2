@@ -123,7 +123,7 @@ export const OrderList = () => {
       render: (row) => (
         <div className="text-xs space-y-0.5">
           <span className="font-semibold text-slate-200 block">
-            {row.pickupLocation} $\rightarrow$ {row.destination}
+            {row.pickupLocation} → {row.destination}
           </span>
           <span className="text-[10px] text-slate-500 block">Due Date: {row.deliveryDate}</span>
         </div>
@@ -348,7 +348,7 @@ export const OrderList = () => {
                 Asset Needed: <strong className="text-indigo-400">{selectedOrder.vehicleRequirement}</strong> • Cargo: {selectedOrder.material} ({selectedOrder.weight} Tons)
               </p>
               <p className="text-slate-400">
-                Route: {selectedOrder.pickupLocation} $\rightarrow$ {selectedOrder.destination}
+                Route: {selectedOrder.pickupLocation} → {selectedOrder.destination}
               </p>
             </div>
 

@@ -6,10 +6,13 @@ const DRIVERS_KEY = 'ltms_drivers';
 const ORDERS_KEY = 'ltms_orders';
 const TRIPS_KEY = 'ltms_trips';
 const FINANCES_KEY = 'ltms_finances';
+const SEED_KEY = 'ltms_seed_version';
+const SEED_VERSION = 'demo-today-v1';
 
 // Helpers to read/write localStorage
 const read = (key) => JSON.parse(localStorage.getItem(key));
 const write = (key, data) => localStorage.setItem(key, JSON.stringify(data));
+const toDateStr = (d) => d.toISOString().split('T')[0];
 
 // Master Lists Initial Setup
 const initialCompanies = [
@@ -61,8 +64,8 @@ const generateHistoricalData = () => {
 
   const materials = ['Electronics', 'Apparel', 'FMCG Goods', 'Automotive Parts', 'Industrial Steel', 'Perishable Goods', 'Chemicals'];
 
-  // Current date in JS
-  const now = new Date('2026-07-31T17:00:00+05:30');
+  // Anchor generated history to the current date so reports always have fresh data
+  const now = new Date();
 
   let orderCounter = 1001;
   let tripCounter = 1001;
@@ -195,7 +198,7 @@ const generateHistoricalData = () => {
     weight: '2.5',
     vehicleRequirement: 'Mahindra Bolero Pickup',
     priority: 'High',
-    deliveryDate: '2026-08-01',
+    deliveryDate: toDateStr(new Date(now.getTime() + 24 * 3600 * 1000)),
     notes: 'Urgent factory line replenishment.',
     status: 'Running'
   };
@@ -218,8 +221,8 @@ const generateHistoricalData = () => {
     estimatedDuration: 4,
     remarks: 'Trip in progress. Driver departed pickup location.',
     status: 'Running',
-    pickupDate: '2026-07-31',
-    deliveryDate: '2026-08-01',
+    pickupDate: toDateStr(now),
+    deliveryDate: toDateStr(new Date(now.getTime() + 24 * 3600 * 1000)),
     startOdometer: 34500,
     endOdometer: 0,
     isDelayed: false,
@@ -245,7 +248,7 @@ const generateHistoricalData = () => {
     weight: '12.0',
     vehicleRequirement: 'Leyland 12-Wheeler',
     priority: 'Medium',
-    deliveryDate: '2026-08-03',
+    deliveryDate: toDateStr(new Date(now.getTime() + 72 * 3600 * 1000)),
     notes: 'Warehouse transfer shipment.',
     status: 'Running'
   };
@@ -268,8 +271,8 @@ const generateHistoricalData = () => {
     estimatedDuration: 36,
     remarks: 'Trip started. Passing thru Gujarat Highway.',
     status: 'Running',
-    pickupDate: '2026-07-31',
-    deliveryDate: '2026-08-03',
+    pickupDate: toDateStr(now),
+    deliveryDate: toDateStr(new Date(now.getTime() + 72 * 3600 * 1000)),
     startOdometer: 78900,
     endOdometer: 0,
     isDelayed: false,
@@ -295,18 +298,149 @@ const generateHistoricalData = () => {
     weight: '8.4',
     vehicleRequirement: 'Tata 407',
     priority: 'High',
-    deliveryDate: '2026-08-01',
+    deliveryDate: toDateStr(new Date(now.getTime() + 24 * 3600 * 1000)),
     notes: 'Express courier load delivery.',
     status: 'Pending'
   };
   orders.unshift(pendingOrder);
 
+  // Seed a few "today" dispatches so the Today's Orders ledger has demo data
+  const demoDispatches = [
+    {
+      company: companies[4],
+      vehicle: vehicles[2],
+      driver: drivers[2],
+      route: { from: 'Pune', to: 'Mumbai', distance: 150, duration: 4 },
+      material: 'FMCG Goods',
+      weight: '4.0',
+      priority: 'Medium',
+      status: 'Assigned',
+      remarks: 'Scheduled dispatch awaiting driver acceptance.'
+    },
+    {
+      company: companies[0],
+      vehicle: vehicles[6],
+      driver: drivers[5],
+      route: { from: 'Bangalore', to: 'Hyderabad', distance: 570, duration: 12 },
+      material: 'Electronics',
+      weight: '9.5',
+      priority: 'High',
+      status: 'Running',
+      remarks: 'In transit. Passing thru Anantapur.'
+    },
+    {
+      company: companies[1],
+      vehicle: vehicles[0],
+      driver: drivers[1],
+      route: { from: 'Delhi', to: 'Jaipur', distance: 280, duration: 6 },
+      material: 'Perishable Goods',
+      weight: '1.5',
+      priority: 'High',
+      status: 'Delivered',
+      remarks: 'Delivered on time. POD collected.'
+    }
+  ];
+
+  demoDispatches.forEach((d) => {
+    const orderId = `ORD-${orderCounter++}`;
+    const tripId = `TRP-${tripCounter++}`;
+    const invoiceNo = `INV-${invoiceCounter++}`;
+
+    orders.unshift({
+      id: orderId,
+      companyId: d.company.id,
+      companyName: d.company.name,
+      pickupLocation: d.route.from,
+      destination: d.route.to,
+      material: d.material,
+      weight: d.weight,
+      vehicleRequirement: d.vehicle.type,
+      priority: d.priority,
+      deliveryDate: toDateStr(new Date(now.getTime() + d.route.duration * 3600000)),
+      notes: d.remarks,
+      status: d.status === 'Delivered' ? 'Delivered' : 'Assigned'
+    });
+
+    const startOdo = Math.floor(Math.random() * 30000) + 20000;
+    trips.unshift({
+      id: tripId,
+      orderId,
+      companyId: d.company.id,
+      companyName: d.company.name,
+      vehicleId: d.vehicle.id,
+      vehicleNumber: d.vehicle.number,
+      driverId: d.driver.id,
+      driverName: d.driver.name,
+      pickupLocation: d.route.from,
+      destination: d.route.to,
+      material: d.material,
+      weight: d.weight,
+      distance: d.route.distance,
+      estimatedDuration: d.route.duration,
+      remarks: d.remarks,
+      status: d.status,
+      pickupDate: toDateStr(now),
+      deliveryDate: toDateStr(new Date(now.getTime() + d.route.duration * 3600000)),
+      startOdometer: d.status === 'Assigned' ? 0 : startOdo,
+      endOdometer: d.status === 'Delivered' ? startOdo + d.route.distance : 0,
+      isDelayed: false,
+      pickupPhoto: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=400&q=80',
+      deliveryPhoto: d.status === 'Delivered' ? 'https://images.unsplash.com/photo-1578575437130-527eed3abbec?auto=format&fit=crop&w=400&q=80' : null,
+      podPhoto: d.status === 'Delivered' ? 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?auto=format&fit=crop&w=400&q=80' : null,
+      currentLocation: { lat: 18.90, lng: 73.50 },
+      speed: d.status === 'Running' ? 58 : 0,
+      eta: d.status === 'Running' ? '4.5 hrs' : 'Calculating...',
+      remainingDistance: d.status === 'Running' ? Math.round(d.route.distance * 0.4) : d.route.distance,
+      lastUpdated: 'Just now'
+    });
+
+    const ratePerKm = 55;
+    const tripAmount = d.route.distance * ratePerKm;
+    const dieselExpense = Math.round(d.route.distance * 16.5);
+    const tollExpense = Math.round(d.route.distance * 2.2);
+    const driverAllowance = Math.round(d.route.distance * 2.0);
+    const loadingCharge = 800;
+    const unloadingCharge = 700;
+    const otherExpenses = 350;
+    const totalExpenses = dieselExpense + tollExpense + driverAllowance + loadingCharge + unloadingCharge + otherExpenses;
+    const netProfit = tripAmount - totalExpenses;
+    const paymentReceived = d.status === 'Delivered' ? tripAmount : Math.round(tripAmount * 0.3);
+    const pendingAmount = tripAmount - paymentReceived;
+
+    finances.unshift({
+      id: `FIN-${tripId.split('-')[1]}`,
+      tripId,
+      companyId: d.company.id,
+      companyName: d.company.name,
+      invoiceNumber: invoiceNo,
+      tripAmount,
+      dieselExpense,
+      tollExpense,
+      driverAllowance,
+      loadingCharge,
+      unloadingCharge,
+      otherExpenses,
+      totalExpenses,
+      paymentReceived,
+      pendingAmount,
+      netProfit,
+      profitMargin: parseFloat(((netProfit / tripAmount) * 100).toFixed(1)),
+      status: pendingAmount === 0 ? 'Paid' : (paymentReceived > 0 ? 'Partial' : 'Pending'),
+      recordedAt: toDateStr(now),
+      remarks: 'Demo dispatch ledger.'
+    });
+
+    // Reflect asset usage in registry
+    d.vehicle.status = d.status === 'Delivered' ? 'Available' : 'Running';
+    d.driver.status = d.status === 'Delivered' ? 'Available' : 'On Trip';
+  });
+
   return { companies, vehicles, drivers, orders, trips, finances };
 };
 
-// Initialize DB in localStorage if empty
+// Initialize DB in localStorage if empty or stale (bump SEED_VERSION to reseed demo data)
 export const initDb = () => {
-  if (!read(COMPANIES_KEY)) {
+  if (!read(COMPANIES_KEY) || read(SEED_KEY) !== SEED_VERSION) {
     const data = generateHistoricalData();
     write(COMPANIES_KEY, data.companies);
     write(VEHICLES_KEY, data.vehicles);
@@ -314,6 +448,7 @@ export const initDb = () => {
     write(ORDERS_KEY, data.orders);
     write(TRIPS_KEY, data.trips);
     write(FINANCES_KEY, data.finances);
+    write(SEED_KEY, SEED_VERSION);
   }
 };
 

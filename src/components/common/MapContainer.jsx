@@ -226,7 +226,7 @@ export const MapContainer = ({
               </span>
             </div>
             <div className="text-xs text-slate-400 font-medium">
-              Driver: {driverName} • Routing: {pickup} $\rightarrow$ {destination}
+              Driver: {driverName} • Routing: {pickup} → {destination}
             </div>
           </div>
         </div>

@@ -1,27 +1,34 @@
 import React, { useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { useTrips, useUpdateTrip } from '../../services/services';
+import { useNavigate } from 'react-router-dom';
+import { useTrips, useUpdateTrip, useDrivers, useVehicles } from '../../services/services';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import MapContainer from '../../components/common/MapContainer';
+import CreateDispatchForm from './CreateDispatchForm';
 import { 
-  Navigation, 
-  MapPin, 
   Camera, 
-  FileText, 
   ShieldCheck, 
-  Compass, 
   Upload, 
   Play, 
   CheckCircle2, 
-  Info 
+  Info,
+  PlusCircle,
+  ExternalLink
 } from 'lucide-react';
 
 export const DriverTripWorkflow = () => {
+  const navigate = useNavigate();
   const { activeDriverId } = useSelector((state) => state.auth);
   
   const { data: trips, isLoading } = useTrips();
+  const { data: drivers } = useDrivers();
+  const { data: vehicles } = useVehicles();
   const updateTripMutation = useUpdateTrip();
+
+  // Toggle for the always-available create & dispatch panel
+  const [dispatchOpen, setDispatchOpen] = useState(false);
+  const [dispatchSuccess, setDispatchSuccess] = useState(null);
 
   // Inputs for start/end workflow
   const [startOdo, setStartOdo] = useState('');
@@ -38,6 +45,25 @@ export const DriverTripWorkflow = () => {
     if (!trips) return null;
     return trips.find(t => t.driverId === activeDriverId && ['Assigned', 'Running', 'Delivered'].includes(t.status));
   }, [trips, activeDriverId]);
+
+  const currentDriver = useMemo(
+    () => (drivers || []).find(d => d.id === activeDriverId),
+    [drivers, activeDriverId]
+  );
+
+  const assignedVehicle = useMemo(
+    () => (vehicles || []).find(v => v.number === currentDriver?.assignedVehicle),
+    [vehicles, currentDriver]
+  );
+
+  const dispatchProps = useMemo(() => ({
+    lockedVehicle: assignedVehicle,
+    lockedDriver: currentDriver,
+    onDispatched: (created) => {
+      setDispatchSuccess(created);
+      setDispatchOpen(false);
+    }
+  }), [assignedVehicle, currentDriver]);
 
   const handleAccept = () => {
     if (!activeTrip) return;
@@ -111,19 +137,31 @@ export const DriverTripWorkflow = () => {
   // State: No active trip assigned
   if (!activeTrip) {
     return (
-      <div className="max-w-md mx-auto py-16 text-center space-y-6 select-none">
-        <div className="inline-flex p-5 bg-slate-900 border border-slate-800 rounded-full text-slate-500 mb-2">
-          <ShieldCheck size={56} className="opacity-40" />
-        </div>
-        <div className="space-y-2">
-          <h2 className="text-xl font-bold font-display text-slate-200">No Assigned Dispatches</h2>
+      <div className="max-w-lg mx-auto py-12 space-y-8 select-none">
+        {/* Standby header */}
+        <div className="text-center space-y-3">
+          <div className="inline-flex p-5 bg-slate-900 border border-slate-800 rounded-full text-slate-500 mb-1">
+            <ShieldCheck size={48} className="opacity-40" />
+          </div>
+          <h2 className="text-xl font-bold font-display text-slate-200">No Active Dispatch</h2>
           <p className="text-sm text-slate-500 leading-relaxed max-w-sm mx-auto">
-            You are currently on standby. The dispatch desk will alert you when a transport order is scheduled for your vehicle.
+            You are on standby. Create a consignment dispatch below — it syncs instantly to the Control Console and dispatch desk.
           </p>
         </div>
-        <div className="p-4 bg-slate-900/60 border border-slate-800 rounded-xl max-w-sm mx-auto flex gap-3 text-left items-start text-xs text-slate-400">
-          <Info size={16} className="text-accent-indigo mt-0.5" />
-          <p>Tip: Switch your role back to <strong>Dispatcher</strong> or <strong>Super Admin</strong> to assign a pending order to your vehicle registry.</p>
+
+        {/* Create & Dispatch Trip panel */}
+        <div className="glass-panel rounded-xl p-6 border border-slate-800 space-y-5 bg-slate-900/60">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-indigo-500/15 rounded-lg text-accent-indigo">
+              <PlusCircle size={18} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-100 font-display">Create & Dispatch Trip</h3>
+              <p className="text-[10px] text-slate-500">Self-service consignment registration on your assigned vehicle</p>
+            </div>
+          </div>
+
+          <CreateDispatchForm {...dispatchProps} />
         </div>
       </div>
     );
@@ -144,6 +182,52 @@ export const DriverTripWorkflow = () => {
         </span>
       </div>
 
+      {/* Dispatch success confirmation, synced with the Control Console */}
+      {dispatchSuccess && (
+        <div className="glass-panel rounded-xl p-4 border border-emerald-500/30 bg-emerald-500/5 space-y-2">
+          <div className="flex items-center gap-2 text-accent-emerald">
+            <CheckCircle2 size={16} />
+            <span className="text-xs font-bold uppercase tracking-wide">Dispatch Created & Synced</span>
+          </div>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            Trip <strong className="text-slate-100">{dispatchSuccess.id}</strong> ({dispatchSuccess.pickupLocation} → {dispatchSuccess.destination}) is now live on the Control Console, Trip Registry and fleet map.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate(`/trips/${dispatchSuccess.id}`)}
+            className="inline-flex items-center gap-1 text-[11px] font-bold text-accent-indigo hover:text-indigo-300 transition-colors cursor-pointer"
+          >
+            <ExternalLink size={12} />
+            View Trip Details
+          </button>
+        </div>
+      )}
+
+      {/* Always-available Create & Dispatch toggle */}
+      <button
+        type="button"
+        onClick={() => setDispatchOpen(v => !v)}
+        className={`w-full flex items-center justify-between p-3 rounded-xl border transition-colors cursor-pointer ${
+          dispatchOpen
+            ? 'bg-indigo-500/10 border-indigo-500/30 text-accent-indigo'
+            : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
+        }`}
+      >
+        <span className="flex items-center gap-2 text-xs font-bold">
+          <PlusCircle size={16} />
+          Create & Dispatch Trip
+        </span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          {dispatchOpen ? 'Close' : 'New Dispatch'}
+        </span>
+      </button>
+
+      {dispatchOpen && (
+        <div className="glass-panel rounded-xl p-6 border border-slate-800 bg-slate-900/60">
+          <CreateDispatchForm {...dispatchProps} />
+        </div>
+      )}
+
       {/* Driver Step Cards */}
       {activeTrip.status === 'Assigned' && (
         <div className="glass-panel rounded-xl p-6 border border-slate-800 space-y-6">
@@ -162,7 +246,7 @@ export const DriverTripWorkflow = () => {
             </div>
             <div className="flex justify-between">
               <span className="text-slate-500">Route Map</span>
-              <span className="font-semibold text-slate-300">{activeTrip.pickupLocation} $\rightarrow$ {activeTrip.destination}</span>
+              <span className="font-semibold text-slate-300">{activeTrip.pickupLocation} → {activeTrip.destination}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-500">Consignment Cargo</span>

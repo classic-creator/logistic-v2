@@ -4,6 +4,7 @@ import { useVehicle, useTrips, useFinances, useUpdateVehicle } from '../../servi
 import { CardSkeleton } from '../../components/common/Skeleton';
 import StatCard from '../../components/common/StatCard';
 import Button from '../../components/common/Button';
+import Input from '../../components/common/Input';
 import { ArrowLeft, Truck, ShieldAlert, Award, FileText, Calendar, PlusCircle, PenTool } from 'lucide-react';
 import { 
   BarChart, 

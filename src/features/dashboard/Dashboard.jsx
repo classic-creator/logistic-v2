@@ -11,6 +11,7 @@ import {
 import StatCard from '../../components/common/StatCard';
 import { CardSkeleton } from '../../components/common/Skeleton';
 import LiveMap from '../../components/common/LiveMap';
+import Table from '../../components/common/Table';
 import { 
   TrendingUp, 
   Truck, 
@@ -21,7 +22,9 @@ import {
   AlertTriangle, 
   CheckCircle,
   PlusCircle,
-  Send
+  Send,
+  ArrowUpRight,
+  CalendarClock
 } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { 
@@ -34,10 +37,7 @@ import {
   ResponsiveContainer,
   PieChart,
   Pie,
-  Cell,
-  Legend,
-  BarChart,
-  Bar
+  Cell
 } from 'recharts';
 
 export const Dashboard = () => {
@@ -140,6 +140,40 @@ export const Dashboard = () => {
 
   const PIE_COLORS = ['#6366f1', '#10b981', '#0ea5e9', '#f59e0b'];
 
+  // Today's orders/dispatches joined with financials (estimates when no ledger yet)
+  const todayOrders = useMemo(() => {
+    if (isDataLoading) return [];
+    const today = new Date().toISOString().split('T')[0];
+
+    return trips
+      .filter(t => t.pickupDate === today)
+      .sort((a, b) => {
+        const rank = (s) => (s === 'Running' ? 0 : s === 'Assigned' ? 1 : 2);
+        return rank(a.status) - rank(b.status);
+      })
+      .map(t => {
+        const finance = finances.find(f => f.tripId === t.id);
+        const tripAmount = finance ? finance.tripAmount : Math.round((t.distance || 0) * 55);
+        const totalExpenses = finance ? finance.totalExpenses : Math.round((t.distance || 0) * 20.7 + 2500);
+        const netProfit = tripAmount - totalExpenses;
+        return {
+          id: t.id,
+          trip: t,
+          orderId: t.orderId || '—',
+          companyName: t.companyName,
+          vehicleNumber: t.vehicleNumber,
+          pickupLocation: t.pickupLocation,
+          destination: t.destination,
+          material: t.material,
+          weight: t.weight,
+          status: t.status,
+          tripAmount,
+          totalExpenses,
+          netProfit
+        };
+      });
+  }, [trips, finances, isDataLoading]);
+
   if (isDataLoading) {
     return (
       <div className="space-y-6">
@@ -162,6 +196,81 @@ export const Dashboard = () => {
     if (num >= 100000) return `₹${(num / 100000).toFixed(2)} Lakh`;
     return `₹${num.toLocaleString('en-IN')}`;
   };
+
+  const statusColors = {
+    Assigned: 'bg-indigo-500/15 text-accent-indigo border border-indigo-500/20',
+    Running: 'bg-sky-500/15 text-accent-sky border border-sky-500/20',
+    Delivered: 'bg-emerald-500/15 text-accent-emerald border border-emerald-500/20',
+    Completed: 'bg-emerald-500/15 text-accent-emerald border border-emerald-500/20',
+    Cancelled: 'bg-slate-800 text-slate-500 border border-slate-700/60'
+  };
+
+  const todayOrderColumns = [
+    {
+      header: 'Order / Account',
+      accessor: 'id',
+      render: (row) => (
+        <div className="space-y-0.5">
+          <span className="font-bold text-indigo-400 block">{row.id}</span>
+          <span className="text-[10px] text-slate-500 block">ORD: {row.orderId} • {row.companyName}</span>
+        </div>
+      )
+    },
+    {
+      header: 'Vehicle',
+      accessor: 'vehicleNumber',
+      render: (row) => <span className="text-xs font-semibold text-slate-300 font-mono">{row.vehicleNumber}</span>
+    },
+    {
+      header: 'Route',
+      accessor: 'pickupLocation',
+      render: (row) => (
+        <div className="text-xs space-y-0.5">
+          <span className="font-semibold text-slate-200 block">{row.pickupLocation} → {row.destination}</span>
+          <span className="text-[10px] text-slate-500">{row.material} • {row.weight} Tons</span>
+        </div>
+      )
+    },
+    {
+      header: 'Amount',
+      accessor: 'tripAmount',
+      className: 'text-right',
+      render: (row) => <span className="font-semibold text-slate-200">{formatCurrency(row.tripAmount)}</span>
+    },
+    {
+      header: 'Cost',
+      accessor: 'totalExpenses',
+      className: 'text-right',
+      render: (row) => <span className="font-semibold text-slate-400">{formatCurrency(row.totalExpenses)}</span>
+    },
+    {
+      header: 'Profit',
+      accessor: 'netProfit',
+      className: 'text-right',
+      render: (row) => (
+        <span className={`font-bold ${row.netProfit >= 0 ? 'text-accent-emerald' : 'text-accent-rose'}`}>
+          {formatCurrency(row.netProfit)}
+        </span>
+      )
+    },
+    {
+      header: 'Status',
+      accessor: 'status',
+      render: (row) => (
+        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${statusColors[row.status]}`}>
+          <CheckCircle size={10} />
+          {row.status}
+        </span>
+      )
+    },
+    {
+      header: '',
+      accessor: 'actions',
+      sortable: false,
+      className: 'text-right',
+      render: () => <ArrowUpRight size={16} className="text-slate-500 ml-auto" />
+    }
+  ];
 
   return (
     <div className="space-y-8 select-none">
@@ -239,6 +348,49 @@ export const Dashboard = () => {
           icon={DollarSign}
           color="amber"
         />
+      </div>
+
+      {/* Today's Orders Ledger */}
+      <div className="glass-panel rounded-xl p-5 border border-slate-800 space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div>
+            <h3 className="text-base font-bold text-slate-100 font-display">Today's Orders</h3>
+            <p className="text-xs text-slate-500">Live consignments scheduled for pickup today with real-time P&L estimates</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-slate-400 bg-slate-900 border border-slate-800 rounded-full px-2.5 py-1">
+              {todayOrders.length} {todayOrders.length === 1 ? 'Dispatch' : 'Dispatches'}
+            </span>
+            <Button variant="outline" size="sm" onClick={() => navigate('/orders')} className="flex items-center gap-1.5">
+              <ArrowUpRight size={14} />
+              View All
+            </Button>
+          </div>
+        </div>
+
+        {todayOrders.length > 0 ? (
+          <Table
+            columns={todayOrderColumns}
+            data={todayOrders}
+            keyField="id"
+            searchPlaceholder="Search today's orders by vehicle, company, status..."
+            searchFields={['id', 'orderId', 'companyName', 'vehicleNumber', 'pickupLocation', 'destination', 'status']}
+            onRowClick={(row) => navigate(`/trips/${row.trip.id}`)}
+            initialPageSize={5}
+          />
+        ) : (
+          <div className="py-10 text-center space-y-3">
+            <CalendarClock size={36} className="mx-auto text-slate-600" />
+            <p className="text-sm font-semibold text-slate-400">No dispatches scheduled for today</p>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto">
+              Create and dispatch a trip to populate today's order ledger — it will sync here instantly.
+            </p>
+            <Button variant="primary" size="sm" onClick={() => navigate('/orders')} className="mt-1 flex items-center gap-1.5 mx-auto">
+              <PlusCircle size={14} />
+              Create Order
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Chart Layout: Split between Area Chart and Pie Chart */}

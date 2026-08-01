@@ -255,7 +255,7 @@ export const DriverDetail = () => {
                 <tr key={t.id} className="text-slate-300">
                   <td className="py-3 font-mono font-bold text-indigo-400">{t.id}</td>
                   <td className="font-semibold">{t.companyName}</td>
-                  <td className="text-slate-400 font-semibold">{t.pickupLocation} $\rightarrow$ {t.destination}</td>
+                  <td className="text-slate-400 font-semibold">{t.pickupLocation} → {t.destination}</td>
                   <td>{t.material} ({t.weight}T)</td>
                   <td className="font-mono">{t.distance} km</td>
                   <td className="text-right">

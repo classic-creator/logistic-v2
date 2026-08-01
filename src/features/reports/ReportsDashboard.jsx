@@ -458,7 +458,7 @@ export const ReportsDashboard = () => {
                 { header: 'Company', accessor: 'companyName' },
                 { header: 'Vehicle', accessor: 'vehicleNumber' },
                 { header: 'Driver', accessor: 'driverName' },
-                { header: 'Route Map', accessor: 'pickupLocation', render: r => <span>{r.pickupLocation} $\rightarrow$ {r.destination}</span> },
+                { header: 'Route Map', accessor: 'pickupLocation', render: r => <span>{r.pickupLocation} → {r.destination}</span> },
                 { header: 'Distance', accessor: 'distance', render: r => <span>{r.distance} km</span> },
                 { header: 'Duty Remarks', accessor: 'remarks', className: 'max-w-[200px] truncate text-slate-500' }
               ]}

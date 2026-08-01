@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { useTrips, useUpdateTrip } from '../../services/services';
 import Table from '../../components/common/Table';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import MapContainer from '../../components/common/MapContainer';
-import { Compass, PhoneCall, CheckSquare, XSquare, MapPin } from 'lucide-react';
+import CreateDispatchForm from './CreateDispatchForm';
+import { Compass, PhoneCall, CheckSquare, XSquare, PlusCircle } from 'lucide-react';
 
 export const TripList = () => {
   const navigate = useNavigate();
@@ -17,6 +18,9 @@ export const TripList = () => {
 
   const [isTrackOpen, setIsTrackOpen] = useState(false);
   const [trackingTrip, setTrackingTrip] = useState(null);
+  const [isDispatchOpen, setIsDispatchOpen] = useState(false);
+
+  const canDispatch = ['Super Admin', 'Dispatcher', 'Operations Manager'].includes(currentRole);
 
   const handleOpenTrack = (e, trip) => {
     e.stopPropagation();
@@ -63,7 +67,7 @@ export const TripList = () => {
       accessor: 'id',
       render: (row) => (
         <div className="space-y-0.5">
-          <span className="font-bold text-slate-200 block">{row.id}</span>
+          <Link to={`/trips/${row.id}`} className="font-bold text-slate-200 block hover:text-indigo-300 hover:underline">{row.id}</Link>
           <span className="text-[10px] text-slate-500 font-mono tracking-wider">ORD: {row.orderId}</span>
         </div>
       )
@@ -89,7 +93,7 @@ export const TripList = () => {
       render: (row) => (
         <div className="text-xs space-y-0.5">
           <span className="font-semibold text-slate-300 block">
-            {row.pickupLocation} $\rightarrow$ {row.destination}
+            {row.pickupLocation} → {row.destination}
           </span>
           <span className="text-[10px] text-slate-500 block">Distance: {row.distance} km</span>
         </div>
@@ -164,6 +168,18 @@ export const TripList = () => {
             Supervise scheduled dispatches, track fleet routes in transit, and resolve delays.
           </p>
         </div>
+
+        {canDispatch && (
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setIsDispatchOpen(true)}
+            className="flex items-center gap-2"
+          >
+            <PlusCircle size={16} />
+            <span>Create & Dispatch Trip</span>
+          </Button>
+        )}
       </div>
 
       {/* Main Table */}
@@ -234,6 +250,20 @@ export const TripList = () => {
             </div>
           </div>
         )}
+      </Modal>
+      {/* Create & Dispatch Trip Modal */}
+      <Modal
+        isOpen={isDispatchOpen}
+        onClose={() => setIsDispatchOpen(false)}
+        title="Create & Dispatch Trip"
+        size="lg"
+      >
+        <CreateDispatchForm
+          onDispatched={(trip) => {
+            setIsDispatchOpen(false);
+            navigate(`/trips/${trip.id}`);
+          }}
+        />
       </Modal>
     </div>
   );

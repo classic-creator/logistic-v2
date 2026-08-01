@@ -1,25 +1,41 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Provider } from 'react-redux';
 import store from './redux/store';
 
-// Layout & Auth
+// Layout & Auth (eager — shell required immediately)
 import DashboardLayout from './components/layout/DashboardLayout';
 import Login from './features/auth/Login';
 
-// Pages
-import Dashboard from './features/dashboard/Dashboard';
-import CompanyList from './features/companies/CompanyList';
-import VehicleList from './features/vehicles/VehicleList';
-import VehicleDetail from './features/vehicles/VehicleDetail';
-import DriverList from './features/drivers/DriverList';
-import DriverDetail from './features/drivers/DriverDetail';
-import OrderList from './features/orders/OrderList';
-import TripList from './features/trips/TripList';
-import DriverTripWorkflow from './features/trips/DriverTripWorkflow';
-import FinanceList from './features/finance/FinanceList';
-import ReportsDashboard from './features/reports/ReportsDashboard';
+// Pages (code-split for faster initial load)
+const Dashboard = lazy(() => import('./features/dashboard/Dashboard'));
+const CompanyList = lazy(() => import('./features/companies/CompanyList'));
+const CompanyDetail = lazy(() => import('./features/companies/CompanyDetail'));
+const VehicleList = lazy(() => import('./features/vehicles/VehicleList'));
+const VehicleDetail = lazy(() => import('./features/vehicles/VehicleDetail'));
+const DriverList = lazy(() => import('./features/drivers/DriverList'));
+const DriverDetail = lazy(() => import('./features/drivers/DriverDetail'));
+const OrderList = lazy(() => import('./features/orders/OrderList'));
+const TripList = lazy(() => import('./features/trips/TripList'));
+const TripDetail = lazy(() => import('./features/trips/TripDetail'));
+const DriverTripWorkflow = lazy(() => import('./features/trips/DriverTripWorkflow'));
+const FinanceList = lazy(() => import('./features/finance/FinanceList'));
+
+// Reports module (each page split into its own chunk)
+const ReportsLayout = lazy(() => import('./features/reports/ReportsLayout'));
+const ExecutiveDashboard = lazy(() => import('./features/reports/pages/ExecutiveDashboard'));
+const TripAnalytics = lazy(() => import('./features/reports/pages/TripAnalytics'));
+const VehicleAnalytics = lazy(() => import('./features/reports/pages/VehicleAnalytics'));
+const DriverAnalytics = lazy(() => import('./features/reports/pages/DriverAnalytics'));
+const CompanyAnalytics = lazy(() => import('./features/reports/pages/CompanyAnalytics'));
+const RevenueAnalytics = lazy(() => import('./features/reports/pages/RevenueAnalytics'));
+const ExpenseAnalytics = lazy(() => import('./features/reports/pages/ExpenseAnalytics'));
+const ProfitAnalytics = lazy(() => import('./features/reports/pages/ProfitAnalytics'));
+const FleetAnalytics = lazy(() => import('./features/reports/pages/FleetAnalytics'));
+const DriverUtilizationAnalytics = lazy(() => import('./features/reports/pages/DriverUtilizationAnalytics'));
+const RouteAnalytics = lazy(() => import('./features/reports/pages/RouteAnalytics'));
+const ComparisonReports = lazy(() => import('./features/reports/pages/ComparisonReports'));
 
 // Initialize React Query Client
 const queryClient = new QueryClient({
@@ -31,40 +47,69 @@ const queryClient = new QueryClient({
   },
 });
 
+// Shared loading fallback for lazy chunks
+const PageFallback = () => (
+  <div className="min-h-[50vh] flex items-center justify-center">
+    <div className="flex flex-col items-center gap-3">
+      <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Loading…</span>
+    </div>
+  </div>
+);
+
 export const App = () => {
   return (
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
-          <Routes>
-            {/* Unauthenticated Route */}
-            <Route path="/login" element={<Login />} />
+          <Suspense fallback={<PageFallback />}>
+            <Routes>
+              {/* Unauthenticated Route */}
+              <Route path="/login" element={<Login />} />
 
-            {/* Authenticated Application Shell */}
-            <Route path="/" element={<DashboardLayout />}>
-              <Route index element={<Navigate to="/dashboard" replace />} />
-              <Route path="dashboard" element={<Dashboard />} />
-              <Route path="companies" element={<CompanyList />} />
-              
-              <Route path="vehicles" element={<VehicleList />} />
-              <Route path="vehicles/:id" element={<VehicleDetail />} />
+              {/* Authenticated Application Shell */}
+              <Route path="/" element={<DashboardLayout />}>
+                <Route index element={<Navigate to="/dashboard" replace />} />
+                <Route path="dashboard" element={<Dashboard />} />
+                <Route path="companies" element={<CompanyList />} />
+                <Route path="companies/:id" element={<CompanyDetail />} />
 
-              <Route path="drivers" element={<DriverList />} />
-              <Route path="drivers/:id" element={<DriverDetail />} />
+                <Route path="vehicles" element={<VehicleList />} />
+                <Route path="vehicles/:id" element={<VehicleDetail />} />
 
-              <Route path="orders" element={<OrderList />} />
-              
-              <Route path="trips" element={<TripList />} />
-              <Route path="driver-trip" element={<DriverTripWorkflow />} />
-              <Route path="driver-profile" element={<DriverDetail />} />
+                <Route path="drivers" element={<DriverList />} />
+                <Route path="drivers/:id" element={<DriverDetail />} />
 
-              <Route path="finance" element={<FinanceList />} />
-              <Route path="reports" element={<ReportsDashboard />} />
-            </Route>
+                <Route path="orders" element={<OrderList />} />
 
-            {/* Fallback Catch-all Route */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
+                <Route path="trips" element={<TripList />} />
+                <Route path="trips/:id" element={<TripDetail />} />
+                <Route path="driver-trip" element={<DriverTripWorkflow />} />
+                <Route path="driver-profile" element={<DriverDetail />} />
+
+                <Route path="finance" element={<FinanceList />} />
+
+                {/* BI Reports — nested under shared layout */}
+                <Route path="reports" element={<ReportsLayout />}>
+                  <Route index element={<ExecutiveDashboard />} />
+                  <Route path="trips" element={<TripAnalytics />} />
+                  <Route path="vehicles" element={<VehicleAnalytics />} />
+                  <Route path="drivers" element={<DriverAnalytics />} />
+                  <Route path="companies" element={<CompanyAnalytics />} />
+                  <Route path="revenue" element={<RevenueAnalytics />} />
+                  <Route path="expenses" element={<ExpenseAnalytics />} />
+                  <Route path="profit" element={<ProfitAnalytics />} />
+                  <Route path="fleet" element={<FleetAnalytics />} />
+                  <Route path="driver-utilization" element={<DriverUtilizationAnalytics />} />
+                  <Route path="routes" element={<RouteAnalytics />} />
+                  <Route path="comparison" element={<ComparisonReports />} />
+                </Route>
+              </Route>
+
+              {/* Fallback Catch-all Route */}
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+          </Suspense>
         </BrowserRouter>
       </QueryClientProvider>
     </Provider>

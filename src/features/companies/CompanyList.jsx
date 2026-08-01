@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   useCompanies, 
   useCreateCompany, 
@@ -79,7 +80,7 @@ export const CompanyList = () => {
             <Building2 size={16} />
           </div>
           <div>
-            <span className="font-bold text-slate-200 block">{row.name}</span>
+            <Link to={`/companies/${row.id}`} className="font-bold text-slate-200 block hover:text-indigo-300 hover:underline">{row.name}</Link>
             <span className="text-[10px] text-slate-500 font-mono tracking-wider uppercase block">GST: {row.gst}</span>
           </div>
         </div>
