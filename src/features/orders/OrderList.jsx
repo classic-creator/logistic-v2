@@ -117,7 +117,7 @@ export const OrderList = () => {
       return;
     }
 
-    const selectedCompany = (companies || []).find(c => c.id === data.companyId);
+    const selectedCompany = (companies?.data || []).find(c => c.id === data.companyId);
     const orderPayload = {
       ...data,
       pickupLocation: selectedPickup,
@@ -192,6 +192,12 @@ export const OrderList = () => {
         <div className="space-y-0.5">
           <span className="font-bold text-indigo-400 block">{row.id}</span>
           <span className="font-semibold text-slate-300 block">{row.companyName}</span>
+          {row.driverName && (
+            <div className="text-[10px] text-slate-350 bg-indigo-950/20 border border-indigo-900/30 rounded-md px-2 py-0.5 mt-1 inline-flex flex-col gap-0.5">
+              <span className="font-semibold">Driver: {row.driverName}</span>
+              {row.vehicleNumber && <span className="text-[9px] text-slate-500">Vehicle: {row.vehicleNumber}</span>}
+            </div>
+          )}
         </div>
       )
     },
@@ -364,7 +370,7 @@ export const OrderList = () => {
             label="Corporate Account"
             required
             error={errors.companyId}
-            options={companies?.map(c => ({ value: c.id, label: c.name })) || []}
+            options={(companies?.data || []).map(c => ({ value: c.id, label: c.name }))}
             placeholder="Select customer client..."
             {...register('companyId', { required: 'Customer is required' })}
           />

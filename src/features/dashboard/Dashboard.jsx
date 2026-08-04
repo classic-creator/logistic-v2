@@ -45,11 +45,11 @@ export const Dashboard = () => {
   const { currentRole } = useSelector((state) => state.auth);
 
   // Fetch all entities via react-query
-  const { data: trips, isLoading: tripsLoading } = useTrips();
-  const { data: vehicles, isLoading: vehiclesLoading } = useVehicles();
-  const { data: drivers, isLoading: driversLoading } = useDrivers();
-  const { data: orders, isLoading: ordersLoading } = useOrders();
-  const { data: finances, isLoading: financesLoading } = useFinances();
+  const { data: trips = [], isLoading: tripsLoading } = useTrips();
+  const { data: vehicles = [], isLoading: vehiclesLoading } = useVehicles();
+  const { data: drivers = [], isLoading: driversLoading } = useDrivers();
+  const { data: orders = [], isLoading: ordersLoading } = useOrders();
+  const { data: finances = [], isLoading: financesLoading } = useFinances();
 
   const isDataLoading = tripsLoading || vehiclesLoading || driversLoading || ordersLoading || financesLoading;
 

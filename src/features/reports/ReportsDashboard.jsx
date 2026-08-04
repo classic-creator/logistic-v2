@@ -181,9 +181,9 @@ export const ReportsDashboard = () => {
 
   // Dynamic Customer portfolio billing statistics
   const companyBusinessList = useMemo(() => {
-    if (isDataLoading || !companies) return [];
+    if (isDataLoading || !companies?.data) return [];
 
-    return companies.map(c => {
+    return companies.data.map(c => {
       const cTrips = trips.filter(t => t.companyId === c.id);
       const completed = cTrips.filter(t => t.status === 'Completed');
       const cFinances = finances.filter(f => cTrips.map(ct => ct.id).includes(f.tripId));

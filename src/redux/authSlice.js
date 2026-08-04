@@ -25,6 +25,9 @@ const authSlice = createSlice({
     setActiveDriverId: (state, action) => {
       state.activeDriverId = action.payload;
     },
+    setUser: (state, action) => {
+      state.user = action.payload;
+    },
     logout: (state) => {
       state.user = null;
       state.currentRole = null;
@@ -32,5 +35,5 @@ const authSlice = createSlice({
   }
 });
 
-export const { setRole, setActiveDriverId, logout } = authSlice.actions;
+export const { setRole, setActiveDriverId, setUser, logout } = authSlice.actions;
 export default authSlice.reducer;

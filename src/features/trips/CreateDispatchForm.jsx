@@ -36,7 +36,7 @@ export const CreateDispatchForm = ({ lockedVehicle, lockedDriver, onDispatched }
   const [error, setError] = useState('');
 
   const companyOptions = useMemo(
-    () => (companies || []).map(c => ({ value: c.id, label: c.name })),
+    () => (companies?.data || []).map(c => ({ value: c.id, label: c.name })),
     [companies]
   );
   const vehicleOptions = useMemo(

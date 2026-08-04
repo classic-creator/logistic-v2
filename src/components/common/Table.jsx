@@ -6,22 +6,52 @@ export const Table = ({
   columns = [],
   data = [],
   searchPlaceholder = 'Search records...',
+  searchFields = [],
+  enableSearch = true,
   filterComponent,
   keyField = 'id',
   onRowClick,
   pageSizeOptions = [10, 20, 50],
   initialPageSize = 10,
-  enableSearch = true,
-  searchFields = [] // Array of keys to match during search. If empty, matches all string fields.
+  serverPagination = false,
+  totalRows = 0,
+  onFetchData = null // (params: { page, pageSize, search, sortKey, sortDirection }) => void
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(initialPageSize);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
-  // Search logic
+  // Debounce search term for server-side
+  React.useEffect(() => {
+    if (serverPagination) {
+      const timer = setTimeout(() => setDebouncedSearch(searchTerm), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [searchTerm, serverPagination]);
+
+  const onFetchDataRef = React.useRef(onFetchData);
+  React.useEffect(() => {
+    onFetchDataRef.current = onFetchData;
+  }, [onFetchData]);
+
+  // Trigger onFetchData when dependencies change
+  React.useEffect(() => {
+    if (serverPagination && onFetchDataRef.current) {
+      onFetchDataRef.current({
+        page: currentPage,
+        pageSize,
+        search: debouncedSearch,
+        sortKey: sortConfig.key,
+        sortDirection: sortConfig.direction
+      });
+    }
+  }, [serverPagination, currentPage, pageSize, debouncedSearch, sortConfig]);
+
+  // Client-side Search logic
   const searchedData = useMemo(() => {
-    if (!searchTerm) return data;
+    if (serverPagination || !searchTerm) return data;
     const term = searchTerm.toLowerCase();
     
     return data.filter((row) => {
@@ -35,11 +65,11 @@ export const Table = ({
         return String(val).toLowerCase().includes(term);
       });
     });
-  }, [data, searchTerm, searchFields]);
+  }, [data, searchTerm, searchFields, serverPagination]);
 
-  // Sort logic
+  // Client-side Sort logic
   const sortedData = useMemo(() => {
-    if (!sortConfig.key) return searchedData;
+    if (serverPagination || !sortConfig.key) return searchedData;
     
     const sorted = [...searchedData].sort((a, b) => {
       const aVal = a[sortConfig.key];
@@ -48,12 +78,10 @@ export const Table = ({
       if (aVal === null || aVal === undefined) return 1;
       if (bVal === null || bVal === undefined) return -1;
 
-      // Handle numbers
       if (typeof aVal === 'number' && typeof bVal === 'number') {
         return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
       }
 
-      // Default string compare
       const aStr = String(aVal).toLowerCase();
       const bStr = String(bVal).toLowerCase();
       
@@ -63,19 +91,22 @@ export const Table = ({
     });
 
     return sorted;
-  }, [searchedData, sortConfig]);
+  }, [searchedData, sortConfig, serverPagination]);
 
   // Pagination logic
-  const totalPages = Math.ceil(sortedData.length / pageSize) || 1;
+  const actualTotalRows = serverPagination ? totalRows : sortedData.length;
+  const totalPages = Math.ceil(actualTotalRows / pageSize) || 1;
+  
   const paginatedData = useMemo(() => {
+    if (serverPagination) return data; // Data is already paginated by server
     const startIndex = (currentPage - 1) * pageSize;
     return sortedData.slice(startIndex, startIndex + pageSize);
-  }, [sortedData, currentPage, pageSize]);
+  }, [sortedData, currentPage, pageSize, serverPagination, data]);
 
-  // Reset page when search or data size changes
+  // Reset page when search changes (only for client side, or if we want it for server side too)
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, pageSize, data.length]);
+  }, [serverPagination ? debouncedSearch : searchTerm, pageSize, data.length]);
 
   const handleSort = (key, sortable) => {
     if (sortable === false) return;

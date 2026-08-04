@@ -15,7 +15,15 @@ import { Plus, Edit2, Trash2, Building2, User, Phone, Mail, Award } from 'lucide
 import { useForm } from 'react-hook-form';
 
 export const CompanyList = () => {
-  const { data: companies, isLoading } = useCompanies();
+  const [tableParams, setTableParams] = useState({ page: 1, pageSize: 10, search: '' });
+  const { data: companiesResponse, isLoading } = useCompanies({ 
+    page: tableParams.page, 
+    per_page: tableParams.pageSize, 
+    search: tableParams.search 
+  });
+  const companies = companiesResponse?.data || [];
+  const totalRows = companiesResponse?.meta?.total || 0;
+  
   const createMutation = useCreateCompany();
   const updateMutation = useUpdateCompany();
   const deleteMutation = useDeleteCompany();
@@ -145,6 +153,10 @@ export const CompanyList = () => {
     }
   ];
 
+  const handleFetchData = (params) => {
+    setTableParams({ page: params.page, pageSize: params.pageSize, search: params.search });
+  };
+
   return (
     <div className="space-y-6 select-none">
       {/* Header toolbar */}
@@ -164,12 +176,15 @@ export const CompanyList = () => {
       </div>
 
       {/* Main Table View */}
-      {isLoading ? (
+      {isLoading && !companies.length ? (
         <div className="h-64 flex items-center justify-center text-slate-500">Loading clients...</div>
       ) : (
         <Table
           columns={columns}
           data={companies}
+          serverPagination={true}
+          totalRows={totalRows}
+          onFetchData={handleFetchData}
           searchPlaceholder="Search by name, GST, contact..."
           searchFields={['name', 'gst', 'contactPerson', 'email', 'phone']}
         />

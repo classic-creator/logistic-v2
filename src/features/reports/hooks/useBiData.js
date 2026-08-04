@@ -46,7 +46,7 @@ export const useBiData = (rangeKey, customRange) => {
   const allTrips = useMemo(() => tripsQ.data || [], [tripsQ.data]);
   const allVehicles = useMemo(() => vehiclesQ.data || [], [vehiclesQ.data]);
   const allDrivers = useMemo(() => driversQ.data || [], [driversQ.data]);
-  const allCompanies = useMemo(() => companiesQ.data || [], [companiesQ.data]);
+  const allCompanies = useMemo(() => companiesQ.data?.data || [], [companiesQ.data]);
   const allOrders = useMemo(() => ordersQ.data || [], [ordersQ.data]);
   const allFinances = useMemo(() => financesQ.data || [], [financesQ.data]);
 
