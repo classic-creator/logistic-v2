@@ -17,4 +17,5 @@ class Driver extends Model
 
     public function trips() { return $this->hasMany(Trip::class); }
     public function assignedVehicle() { return $this->belongsTo(Vehicle::class, 'assigned_vehicle_id'); }
+    public function fuelEntries() { return $this->hasMany(FuelEntry::class); }
 }

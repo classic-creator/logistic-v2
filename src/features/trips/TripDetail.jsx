@@ -1,6 +1,7 @@
 import React from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTrip, useUpdateTrip } from '../../services/services';
+import TripFuelPanel from '../fuel/TripFuelPanel';
 import MapContainer from '../../components/common/MapContainer';
 import Button from '../../components/common/Button';
 import StatCard from '../../components/common/StatCard';
@@ -229,6 +230,9 @@ export const TripDetail = () => {
           </div>
         )}
       </div>
+
+      {/* Fuel Intelligence: estimation vs actual + timeline */}
+      <TripFuelPanel trip={trip} />
 
       {/* Related order */}
       {trip.orderId && (

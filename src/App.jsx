@@ -22,6 +22,12 @@ const TripDetail = lazy(() => import('./features/trips/TripDetail'));
 const DriverTripWorkflow = lazy(() => import('./features/trips/DriverTripWorkflow'));
 const FinanceList = lazy(() => import('./features/finance/FinanceList'));
 
+// Fuel Intelligence System
+const FuelDashboard = lazy(() => import('./features/fuel/FuelDashboard'));
+const FuelAnalytics = lazy(() => import('./features/fuel/FuelAnalytics'));
+const FuelPrices = lazy(() => import('./features/fuel/FuelPrices'));
+const DriverFuelLog = lazy(() => import('./features/fuel/DriverFuelLog'));
+
 // Reports module (each page split into its own chunk)
 const ReportsLayout = lazy(() => import('./features/reports/ReportsLayout'));
 const ExecutiveDashboard = lazy(() => import('./features/reports/pages/ExecutiveDashboard'));
@@ -86,6 +92,12 @@ export const App = () => {
                 <Route path="trips/:id" element={<TripDetail />} />
                 <Route path="driver-trip" element={<DriverTripWorkflow />} />
                 <Route path="driver-profile" element={<DriverDetail />} />
+
+                {/* Fuel Intelligence System */}
+                <Route path="fuel" element={<FuelDashboard />} />
+                <Route path="fuel/analytics" element={<FuelAnalytics />} />
+                <Route path="fuel/prices" element={<FuelPrices />} />
+                <Route path="fuel/log" element={<DriverFuelLog />} />
 
                 <Route path="finance" element={<FinanceList />} />
 

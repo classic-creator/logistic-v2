@@ -2,17 +2,18 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
-import { 
-  LayoutDashboard, 
-  Building2, 
-  Truck, 
-  Users, 
-  FileText, 
-  Navigation, 
-  Coins, 
-  BarChart3, 
-  ClipboardCheck, 
-  UserCircle 
+import {
+  LayoutDashboard,
+  Building2,
+  Truck,
+  Users,
+  FileText,
+  Navigation,
+  Coins,
+  BarChart3,
+  ClipboardCheck,
+  UserCircle,
+  Fuel,
 } from 'lucide-react';
 
 export const Sidebar = () => {
@@ -57,23 +58,35 @@ export const Sidebar = () => {
       icon: Navigation, 
       roles: ['Super Admin', 'Operations Manager', 'Dispatcher'] 
     },
-    { 
-      path: '/driver-trip', 
-      label: 'My Trips', 
-      icon: ClipboardCheck, 
-      roles: ['Driver'] 
+    {
+      path: '/driver-trip',
+      label: 'My Trips',
+      icon: ClipboardCheck,
+      roles: ['Driver']
     },
-    { 
-      path: '/driver-profile', 
-      label: 'My Profile', 
-      icon: UserCircle, 
-      roles: ['Driver'] 
+    {
+      path: '/fuel/log',
+      label: 'Fuel Log',
+      icon: Fuel,
+      roles: ['Driver']
     },
-    { 
-      path: '/finance', 
-      label: 'Finance Ledger', 
-      icon: Coins, 
-      roles: ['Super Admin', 'Finance Manager'] 
+    {
+      path: '/driver-profile',
+      label: 'My Profile',
+      icon: UserCircle,
+      roles: ['Driver']
+    },
+    {
+      path: '/fuel',
+      label: 'Fuel Intelligence',
+      icon: Fuel,
+      roles: ['Super Admin', 'Operations Manager', 'Finance Manager']
+    },
+    {
+      path: '/finance',
+      label: 'Finance Ledger',
+      icon: Coins,
+      roles: ['Super Admin', 'Finance Manager']
     },
     { 
       path: '/reports', 

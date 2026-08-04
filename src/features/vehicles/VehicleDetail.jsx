@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useVehicle, useTrips, useFinances, useUpdateVehicle } from '../../services/services';
+import { useVehicleFuelPerformance } from '../../services/fuelServices';
 import { CardSkeleton } from '../../components/common/Skeleton';
 import StatCard from '../../components/common/StatCard';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
-import { ArrowLeft, Truck, ShieldAlert, Award, FileText, Calendar, PlusCircle, PenTool } from 'lucide-react';
+import { ArrowLeft, Truck, ShieldAlert, Award, FileText, Calendar, PlusCircle, PenTool, Fuel } from 'lucide-react';
 import {
   BarChart, 
   Bar, 
@@ -25,6 +26,7 @@ export const VehicleDetail = () => {
   const { data: vehicle, isLoading: vehicleLoading } = useVehicle(id);
   const { data: trips, isLoading: tripsLoading } = useTrips();
   const { data: finances, isLoading: financesLoading } = useFinances();
+  const { data: fuelPerf, isLoading: fuelPerfLoading } = useVehicleFuelPerformance(id);
   const updateMutation = useUpdateVehicle();
 
   const [showLogModal, setShowLogModal] = useState(false);
@@ -245,6 +247,63 @@ export const VehicleDetail = () => {
           icon={PenTool}
           color="amber"
         />
+      </div>
+
+      {/* Fuel Performance */}
+      <div className="glass-panel rounded-xl p-5 border border-slate-800 space-y-4">
+        <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+          <Fuel size={16} className="text-accent-amber" />
+          <h3 className="text-sm font-bold text-slate-100 font-display">Fuel Performance</h3>
+          {fuelPerfLoading && <span className="ml-auto text-[10px] text-slate-500">Calculating…</span>}
+        </div>
+
+        {fuelPerf && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+              <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block">Lifetime Fuel</span>
+              <span className="text-lg font-extrabold font-mono text-amber-300">{Number(fuelPerf.liters || 0).toFixed(1)} L</span>
+              <span className="text-[10px] text-slate-500 block mt-0.5">₹{Number(fuelPerf.cost || 0).toLocaleString('en-IN')}</span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+              <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block">Avg Mileage</span>
+              <span className="text-lg font-extrabold font-mono text-emerald-400">{Number(fuelPerf.avgMileage || 0).toFixed(1)} km/L</span>
+              <span className="text-[10px] text-slate-500 block mt-0.5">{(fuelPerf.manufacturerMileage ? `Mfr: ${fuelPerf.manufacturerMileage}` : '')}</span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+              <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block">Cost / KM</span>
+              <span className="text-lg font-extrabold font-mono text-sky-400">₹{Number(fuelPerf.costPerKm || 0).toFixed(2)}</span>
+              <span className="text-[10px] text-slate-500 block mt-0.5">{fuelPerf.entries} fills</span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+              <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block">Distance</span>
+              <span className="text-lg font-extrabold font-mono text-indigo-300">{Number(fuelPerf.distance || 0).toLocaleString('en-IN')} km</span>
+              <span className="text-[10px] text-slate-500 block mt-0.5">Tank: {fuelPerf.tankCapacity ? `${fuelPerf.tankCapacity} L` : '—'}</span>
+            </div>
+          </div>
+        )}
+
+        {fuelPerf && (fuelPerf.bestMileage?.tripId || fuelPerf.worstMileage?.tripId) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            {fuelPerf.bestMileage?.tripId && (
+              <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/15">
+                <span className="text-[9px] uppercase tracking-wider text-accent-emerald font-bold block mb-1">Best Route</span>
+                <span className="text-slate-200 font-semibold block">{fuelPerf.bestMileage.route}</span>
+                <span className="text-[10px] text-slate-500 font-mono">{Number(fuelPerf.bestMileage.mileage).toFixed(1)} km/L</span>
+              </div>
+            )}
+            {fuelPerf.worstMileage?.tripId && (
+              <div className="p-3 rounded-lg bg-rose-500/5 border border-rose-500/15">
+                <span className="text-[9px] uppercase tracking-wider text-accent-rose font-bold block mb-1">Worst Route</span>
+                <span className="text-slate-200 font-semibold block">{fuelPerf.worstMileage.route}</span>
+                <span className="text-[10px] text-slate-500 font-mono">{Number(fuelPerf.worstMileage.mileage).toFixed(1)} km/L</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!fuelPerf && !fuelPerfLoading && (
+          <p className="text-xs text-slate-500">No approved fuel entries yet for this vehicle.</p>
+        )}
       </div>
 
       {/* Charts & Detail grids */}

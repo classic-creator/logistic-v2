@@ -1,9 +1,10 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useCompanies, useDrivers, useVehicles, useCreateTrip } from '../../services/services';
+import { useFuelEstimatePreview } from '../../services/fuelServices';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Select from '../../components/common/Select';
-import { Info, Send, Navigation, Truck } from 'lucide-react';
+import { Info, Send, Navigation, Truck, Fuel } from 'lucide-react';
 import { CITIES, MATERIALS, ROUTE_DISTANCES } from './routeConstants';
 import {
   GoogleTripRoutePicker,
@@ -19,6 +20,7 @@ export const CreateDispatchForm = ({ lockedVehicle, lockedDriver, onDispatched }
   const { data: drivers } = useDrivers();
   const { data: vehicles } = useVehicles();
   const createTripMutation = useCreateTrip();
+  const estimatePreview = useFuelEstimatePreview();
 
   const [companyId, setCompanyId] = useState('');
   const [pickupLocation, setPickupLocation] = useState('');
@@ -67,6 +69,29 @@ export const CreateDispatchForm = ({ lockedVehicle, lockedDriver, onDispatched }
     () => (Number(durationInput) > 0 ? Number(durationInput) : recommendedDuration),
     [durationInput, recommendedDuration]
   );
+
+  const estimateVehicle = useMemo(
+    () => lockedVehicle || (vehicles || []).find((v) => v.id === vehicleId) || null,
+    [lockedVehicle, vehicles, vehicleId]
+  );
+
+  // Live fuel estimate preview for the dispatcher before dispatch.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!estimateVehicle || !effectiveDistance) {
+      estimatePreview.reset();
+      return;
+    }
+    const t = setTimeout(() => {
+      estimatePreview.mutate({
+        vehicleId: estimateVehicle.id,
+        distance: effectiveDistance,
+        pickupLocation: pickupLocation || undefined,
+        destination: destination || undefined,
+      });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [estimateVehicle, effectiveDistance, pickupLocation, destination]);
 
   const handleRouteChange = (field, value) => {
     setDistanceInput('');
@@ -314,6 +339,34 @@ export const CreateDispatchForm = ({ lockedVehicle, lockedDriver, onDispatched }
           onChange={e => setDurationInput(e.target.value)}
         />
       </div>
+
+      {/* Live fuel estimation preview */}
+      {estimatePreview.data && (
+        <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-2.5">
+          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-accent-amber">
+            <Fuel size={14} />
+            Fuel Intelligence Estimate
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="p-2 rounded-lg bg-slate-900/70 border border-slate-800">
+              <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block">Fuel Required</span>
+              <span className="text-sm font-extrabold font-mono text-amber-300">{Number(estimatePreview.data.fuelLiters).toFixed(1)} L</span>
+            </div>
+            <div className="p-2 rounded-lg bg-slate-900/70 border border-slate-800">
+              <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block">Est. Cost</span>
+              <span className="text-sm font-extrabold font-mono text-emerald-400">₹{Number(estimatePreview.data.fuelCost || 0).toLocaleString('en-IN')}</span>
+            </div>
+            <div className="p-2 rounded-lg bg-slate-900/70 border border-slate-800">
+              <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block">Mileage</span>
+              <span className="text-sm font-extrabold font-mono text-indigo-300">{Number(estimatePreview.data.mileage).toFixed(1)} km/L</span>
+            </div>
+          </div>
+          <div className="flex justify-between text-[10px] text-slate-500">
+            <span>@ ₹{Number(estimatePreview.data.pricePerLiter).toFixed(2)}/L · {estimateVehicle?.fuelType || 'Diesel'}</span>
+            <span>{Number(estimatePreview.data.distance).toFixed(0)} km</span>
+          </div>
+        </div>
+      )}
 
       <Input
         label="Notes"

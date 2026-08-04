@@ -2,10 +2,11 @@ import { useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { useDriver, useFinances, useTrips } from '../../services/services';
+import { useDriverFuelPerformance } from '../../services/fuelServices';
 import { CardSkeleton } from '../../components/common/Skeleton';
 import StatCard from '../../components/common/StatCard';
 import Button from '../../components/common/Button';
-import { ArrowLeft, Star, Calendar, FileText, Compass, BadgeCheck, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Star, Calendar, FileText, Compass, BadgeCheck, ShieldAlert, Fuel } from 'lucide-react';
 import {
   AreaChart, 
   Area, 
@@ -27,6 +28,7 @@ export const DriverDetail = () => {
   const { data: driver, isLoading: driverLoading } = useDriver(id);
   const { data: trips, isLoading: tripsLoading } = useTrips();
   const { data: finances, isLoading: financesLoading } = useFinances();
+  const { data: fuelPerf, isLoading: fuelPerfLoading } = useDriverFuelPerformance(id);
 
   const isDataLoading = driverLoading || tripsLoading || financesLoading;
 
@@ -186,6 +188,44 @@ export const DriverDetail = () => {
           icon={Star}
           color="amber"
         />
+      </div>
+
+      {/* Fuel Performance */}
+      <div className="glass-panel rounded-xl p-5 border border-slate-800 space-y-4">
+        <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+          <Fuel size={16} className="text-accent-amber" />
+          <h3 className="text-sm font-bold text-slate-100 font-display">Fuel Performance</h3>
+          {fuelPerfLoading && <span className="ml-auto text-[10px] text-slate-500">Calculating…</span>}
+        </div>
+
+        {fuelPerf ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+              <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block">Total Fuel</span>
+              <span className="text-lg font-extrabold font-mono text-amber-300">{Number(fuelPerf.liters || 0).toFixed(1)} L</span>
+              <span className="text-[10px] text-slate-500 block mt-0.5">₹{Number(fuelPerf.cost || 0).toLocaleString('en-IN')}</span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+              <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block">Avg Mileage</span>
+              <span className="text-lg font-extrabold font-mono text-emerald-400">{Number(fuelPerf.avgMileage || 0).toFixed(1)} km/L</span>
+              <span className="text-[10px] text-slate-500 block mt-0.5">{fuelPerf.entries} fills</span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+              <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block">Cost / KM</span>
+              <span className="text-lg font-extrabold font-mono text-sky-400">₹{Number(fuelPerf.costPerKm || 0).toFixed(2)}</span>
+              <span className="text-[10px] text-slate-500 block mt-0.5">Including flagged</span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+              <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block">Fuel to Revenue</span>
+              <span className="text-lg font-extrabold font-mono text-indigo-300">{fuelPerf.fuelToRevenue ? `${(fuelPerf.fuelToRevenue * 100).toFixed(1)}%` : '—'}</span>
+              <span className="text-[10px] text-slate-500 block mt-0.5">Share of trip revenue</span>
+            </div>
+          </div>
+        ) : (
+          !fuelPerfLoading && (
+            <p className="text-xs text-slate-500">No approved fuel entries logged for this driver yet.</p>
+          )
+        )}
       </div>
 
       {/* Charts & Details split grids */}

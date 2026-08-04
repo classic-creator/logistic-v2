@@ -34,6 +34,23 @@ class TripResource extends JsonResource
             'driver_mobile' => $this->driver?->mobile ?? '1800250500',
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
+
+            // Fuel Intelligence
+            'estimated_distance' => $this->estimated_distance,
+            'estimated_fuel_liters' => $this->estimated_fuel_liters,
+            'estimated_fuel_cost' => $this->estimated_fuel_cost,
+            'estimated_mileage' => $this->estimated_mileage,
+            'estimated_travel_hours' => $this->estimated_travel_hours,
+            'fuel_price_per_liter' => $this->fuel_price_per_liter,
+            'start_odometer' => $this->start_odometer,
+            'end_odometer' => $this->end_odometer,
+            'actual_fuel_liters' => $this->actual_fuel_liters ?? $this->actualFuelLiters(),
+            'actual_fuel_cost' => $this->actual_fuel_cost ?? $this->actualFuelCost(),
+            'actual_mileage' => $this->actual_mileage ?? $this->actualMileage(),
+            'actual_distance' => $this->actualDistance(),
+            'fuel_variance_status' => $this->fuel_variance_status ?? $this->fuelVarianceStatus(),
+            'fuel_entries_count' => $this->whenLoaded('fuelEntries', fn () => $this->fuelEntries->count()),
+            'fuel_entries' => FuelEntryResource::collection($this->whenLoaded('fuelEntries')),
         ];
     }
 }

@@ -1,30 +1,32 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { 
-  useTrips, 
-  useVehicles, 
-  useDrivers, 
-  useOrders, 
-  useFinances 
+import {
+  useTrips,
+  useVehicles,
+  useDrivers,
+  useOrders,
+  useFinances
 } from '../../services/services';
+import { useFuelDashboard } from '../../services/fuelServices';
 import StatCard from '../../components/common/StatCard';
 import { CardSkeleton } from '../../components/common/Skeleton';
 import LiveMap from '../../components/common/LiveMap';
 import Table from '../../components/common/Table';
-import { 
-  TrendingUp, 
-  Truck, 
-  Users, 
-  FileText, 
-  Navigation, 
-  DollarSign, 
-  AlertTriangle, 
+import {
+  TrendingUp,
+  Truck,
+  Users,
+  FileText,
+  Navigation,
+  DollarSign,
+  AlertTriangle,
   CheckCircle,
   PlusCircle,
   Send,
   ArrowUpRight,
-  CalendarClock
+  CalendarClock,
+  Fuel
 } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { 
@@ -50,8 +52,9 @@ export const Dashboard = () => {
   const { data: drivers = [], isLoading: driversLoading } = useDrivers();
   const { data: orders = [], isLoading: ordersLoading } = useOrders();
   const { data: finances = [], isLoading: financesLoading } = useFinances();
+  const { data: fuelDash, isLoading: fuelLoading } = useFuelDashboard();
 
-  const isDataLoading = tripsLoading || vehiclesLoading || driversLoading || ordersLoading || financesLoading;
+  const isDataLoading = tripsLoading || vehiclesLoading || driversLoading || ordersLoading || financesLoading || fuelLoading;
 
   // Calculate dynamic stats
   const stats = useMemo(() => {
@@ -348,6 +351,57 @@ export const Dashboard = () => {
           icon={DollarSign}
           color="amber"
         />
+      </div>
+
+      {/* Fuel Intelligence Widgets */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-4 glass-panel rounded-xl p-5 border border-slate-800 space-y-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-amber-500/15 rounded-lg text-accent-amber">
+                <Fuel size={18} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-100 font-display">Fuel Intelligence Snapshot</h3>
+                <p className="text-xs text-slate-500">Live fuel estimation, actuals and anomaly watch</p>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => navigate('/fuel')} className="flex items-center gap-1.5">
+              <ArrowUpRight size={14} />
+              Open Fuel Intelligence
+            </Button>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+              <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block">Today's Est. Fuel</span>
+              <span className="text-lg font-extrabold font-mono text-indigo-300">₹{Number(fuelDash?.today?.estimatedFuelCost || 0).toLocaleString('en-IN')}</span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+              <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block">Today's Actual Fuel</span>
+              <span className="text-lg font-extrabold font-mono text-amber-300">₹{Number(fuelDash?.today?.actualFuelCost || 0).toLocaleString('en-IN')}</span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+              <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block">Monthly Fuel Expense</span>
+              <span className="text-lg font-extrabold font-mono text-emerald-400">₹{Number(fuelDash?.month?.actualFuelCost || 0).toLocaleString('en-IN')}</span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Avg Cost/km</span>
+                <span className="font-mono font-bold text-sky-400">₹{Number(fuelDash?.overall?.avgCostPerKm || 0).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Avg Mileage</span>
+                <span className="font-mono font-bold text-emerald-400">{Number(fuelDash?.overall?.avgMileage || 0).toFixed(1)} km/L</span>
+              </div>
+              <div className="flex justify-between items-center border-t border-slate-800 pt-2">
+                <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Today Δ</span>
+                <span className={`font-mono font-bold ${Number(fuelDash?.today?.difference || 0) > 0 ? 'text-accent-rose' : 'text-accent-emerald'}`}>
+                  ₹{Math.abs(Number(fuelDash?.today?.difference || 0)).toLocaleString('en-IN')}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Today's Orders Ledger */}

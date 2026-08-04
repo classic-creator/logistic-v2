@@ -16,6 +16,17 @@ class Trip extends Model
         'delivery_date' => 'date',
         'is_delayed' => 'boolean',
         'last_tracked_at' => 'datetime',
+        'estimated_distance' => 'float',
+        'estimated_fuel_liters' => 'float',
+        'estimated_fuel_cost' => 'float',
+        'estimated_mileage' => 'float',
+        'estimated_travel_hours' => 'float',
+        'start_odometer' => 'float',
+        'end_odometer' => 'float',
+        'fuel_price_per_liter' => 'float',
+        'actual_fuel_liters' => 'float',
+        'actual_fuel_cost' => 'float',
+        'actual_mileage' => 'float',
     ];
 
     public function order() { return $this->belongsTo(Order::class); }
@@ -26,4 +37,51 @@ class Trip extends Model
     public function trackingPoints() { return $this->hasMany(TripTrackingPoint::class); }
     public function documents() { return $this->hasMany(TripDocument::class); }
     public function financeLedger() { return $this->hasOne(FinanceLedger::class); }
+    public function fuelEntries() { return $this->hasMany(FuelEntry::class); }
+    public function fuelPrice() { return $this->belongsTo(FuelPrice::class); }
+
+    /**
+     * Approved fuel quantity/cost for this trip.
+     */
+    public function approvedFuelEntries()
+    {
+        return $this->fuelEntries()->where('status', FuelEntry::STATUS_APPROVED);
+    }
+
+    public function actualDistance(): float
+    {
+        if ($this->start_odometer && $this->end_odometer) {
+            return max(0, (float) $this->end_odometer - (float) $this->start_odometer);
+        }
+        return (float) ($this->distance ?? 0);
+    }
+
+    public function actualFuelLiters(): float
+    {
+        return (float) $this->approvedFuelEntries()->sum('quantity');
+    }
+
+    public function actualFuelCost(): float
+    {
+        return (float) $this->approvedFuelEntries()->sum('total_cost');
+    }
+
+    public function actualMileage(): float
+    {
+        $liters = $this->actualFuelLiters();
+        $dist = $this->actualDistance();
+        if ($liters <= 0 || $dist <= 0) return 0;
+        return round($dist / $liters, 2);
+    }
+
+    public function fuelVarianceStatus(): string
+    {
+        $est = (float) $this->estimated_fuel_liters;
+        $act = $this->actualFuelLiters();
+        if ($est <= 0) return 'pending';
+        $diff = (($act - $est) / $est) * 100;
+        if ($diff <= 5) return 'normal';
+        if ($diff <= 15) return 'elevated';
+        return 'abnormal';
+    }
 }

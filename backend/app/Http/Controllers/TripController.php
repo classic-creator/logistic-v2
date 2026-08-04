@@ -2,6 +2,8 @@
 namespace App\Http\Controllers;
 use App\Models\Trip;
 use App\Models\TripDocument;
+use App\Services\FuelEstimationService;
+use App\Services\FuelFinanceService;
 use App\Http\Resources\TripResource;
 use App\Http\Requests\StoreTripRequest;
 use App\Http\Requests\UpdateTripRequest;
@@ -9,9 +11,18 @@ use Illuminate\Http\Request;
 
 class TripController extends Controller
 {
+    protected FuelEstimationService $estimator;
+    protected FuelFinanceService $finance;
+
+    public function __construct(FuelEstimationService $estimator, FuelFinanceService $finance)
+    {
+        $this->estimator = $estimator;
+        $this->finance = $finance;
+    }
+
     public function index(Request $request)
     {
-        $query = Trip::query()->with(['company', 'driver', 'vehicle']);
+        $query = Trip::query()->with(['company', 'driver', 'vehicle', 'fuelEntries' => fn ($q) => $q->where('status', 'Approved')]);
         if ($request->has('status')) {
             $query->where('status', $request->status);
         }
@@ -44,6 +55,10 @@ class TripController extends Controller
         if ($trip->driver_id) {
             \App\Models\Driver::where('id', $trip->driver_id)->update(['status' => 'On Trip']);
         }
+
+        // Fuel Intelligence: run the estimation engine automatically
+        $trip = $this->estimator->estimateAndPersist($trip);
+        $this->finance->createLedgerForTrip($trip);
 
         return response()->json([
             'success' => true,
@@ -105,6 +120,10 @@ class TripController extends Controller
         }
         $trip->vehicle->update(['status' => 'Available']);
         $trip->driver->update(['status' => 'Available']);
+
+        // Recompute fuel actuals & mileage once the trip is closed
+        $this->estimator->refreshTripActuals($trip);
+        $this->finance->syncTripDieselExpense($trip);
         
         return response()->json(['success' => true]);
     }

@@ -4,17 +4,21 @@ import { useNavigate } from 'react-router-dom';
 import { useTrips, useUpdateTrip, useDrivers, useVehicles } from '../../services/services';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
+import Modal from '../../components/common/Modal';
 import MapContainer from '../../components/common/MapContainer';
 import CreateDispatchForm from './CreateDispatchForm';
-import { 
-  Camera, 
-  ShieldCheck, 
-  Upload, 
-  Play, 
-  CheckCircle2, 
+import FuelEntryForm from '../fuel/FuelEntryForm';
+import FuelTimeline from '../fuel/FuelTimeline';
+import {
+  Camera,
+  ShieldCheck,
+  Upload,
+  Play,
+  CheckCircle2,
   Info,
   PlusCircle,
-  ExternalLink
+  ExternalLink,
+  Fuel,
 } from 'lucide-react';
 
 export const DriverTripWorkflow = () => {
@@ -36,6 +40,9 @@ export const DriverTripWorkflow = () => {
   const [pickupPhotoSim, setPickupPhotoSim] = useState(false);
   const [deliveryPhotoSim, setDeliveryPhotoSim] = useState(false);
   const [podPhotoSim, setPodPhotoSim] = useState(false);
+
+  // Fuel entry modal
+  const [fuelOpen, setFuelOpen] = useState(false);
 
   // Error validations
   const [formError, setFormError] = useState('');
@@ -340,13 +347,42 @@ export const DriverTripWorkflow = () => {
             />
           </div>
 
+          {/* Fuel fill quick action */}
+          <div className="glass-panel rounded-xl p-6 border border-slate-800 space-y-4 bg-slate-900/60">
+            <div className="flex items-center justify-between">
+              <div className="text-center sm:text-left space-y-1">
+                <h3 className="text-base font-bold text-slate-100">Fuel Refill</h3>
+                <p className="text-xs text-slate-500">Log fuel purchases instantly — vehicle, trip and driver are pre-filled.</p>
+              </div>
+              <Button variant="warning" size="sm" onClick={() => setFuelOpen(true)} className="flex items-center gap-1.5">
+                <Fuel size={14} />
+                Add Fuel
+              </Button>
+            </div>
+            {activeTrip.estimatedFuelLiters > 0 && (
+              <div className="flex items-center justify-between p-3 rounded-lg bg-indigo-500/5 border border-indigo-500/15 text-[11px]">
+                <span className="text-slate-400">Trip fuel estimate</span>
+                <span className="font-mono font-bold text-indigo-300">
+                  {Number(activeTrip.estimatedFuelLiters).toFixed(1)} L · ₹{Number(activeTrip.estimatedFuelCost || 0).toLocaleString('en-IN')}
+                </span>
+              </div>
+            )}
+            {(activeTrip.fuelEntries || []).length > 0 && (
+              <FuelTimeline entries={activeTrip.fuelEntries} />
+            )}
+          </div>
+
+          {/* Fuel entry modal */}
+          <Modal isOpen={fuelOpen} onClose={() => setFuelOpen(false)} title={`Add Fuel — Trip #${activeTrip.id}`}>
+            <FuelEntryForm trip={activeTrip} onSaved={() => setFuelOpen(false)} />
+          </Modal>
+
           {/* Delivery form completion card */}
           <div className="glass-panel rounded-xl p-6 border border-slate-800 space-y-5 bg-slate-900/60">
             <div className="text-center space-y-1">
               <h3 className="text-base font-bold text-slate-100">Delivery Registry</h3>
               <p className="text-xs text-slate-500">Record ending parameters and upload contracting paper logs.</p>
             </div>
-
             {formError && (
               <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-[11px] font-semibold text-accent-rose rounded-lg flex items-center gap-2">
                 <Info size={14} className="flex-shrink-0" />

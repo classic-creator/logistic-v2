@@ -10,6 +10,9 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\TripController;
 use App\Http\Controllers\FinanceLedgerController;
 use App\Http\Controllers\VehicleMaintenanceLogController;
+use App\Http\Controllers\FuelEntryController;
+use App\Http\Controllers\FuelPriceController;
+use App\Http\Controllers\FuelIntelligenceController;
 
 Route::prefix('v1')->group(function () {
     Route::post('/auth/login', [AuthController::class, 'login']);
@@ -25,6 +28,21 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('orders', OrderController::class);
         Route::apiResource('trips', TripController::class);
         Route::apiResource('finances', FinanceLedgerController::class);
+
+        // --- Fuel Intelligence System ---
+        Route::apiResource('fuel-entries', FuelEntryController::class);
+        Route::post('/fuel-entries/{fuelEntry}/approve', [FuelEntryController::class, 'approve']);
+        Route::post('/fuel-entries/{fuelEntry}/reject', [FuelEntryController::class, 'reject']);
+        Route::post('/fuel-entries/{fuelEntry}/rescan', [FuelEntryController::class, 'rescan']);
+
+        Route::apiResource('fuel-prices', FuelPriceController::class);
+
+        Route::post('/fuel/estimate-preview', [FuelIntelligenceController::class, 'estimatePreview']);
+        Route::get('/fuel/trips/{trip}/breakdown', [FuelIntelligenceController::class, 'tripBreakdown']);
+        Route::get('/fuel/dashboard', [FuelIntelligenceController::class, 'dashboard']);
+        Route::get('/fuel/analytics', [FuelIntelligenceController::class, 'analytics']);
+        Route::get('/fuel/vehicles/{vehicle}', [FuelIntelligenceController::class, 'vehiclePerformance']);
+        Route::get('/fuel/drivers/{driver}', [FuelIntelligenceController::class, 'driverPerformance']);
     });
 });
 

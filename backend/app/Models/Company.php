@@ -13,4 +13,6 @@ class Company extends Model
 
     public function orders() { return $this->hasMany(Order::class); }
     public function trips() { return $this->hasMany(Trip::class); }
+    public function fuelEntries() { return $this->hasMany(FuelEntry::class); }
+    public function fuelPrices() { return $this->hasMany(FuelPrice::class); }
 }

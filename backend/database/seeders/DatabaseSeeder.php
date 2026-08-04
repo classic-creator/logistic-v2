@@ -326,5 +326,6 @@ class DatabaseSeeder extends Seeder
         }
 
         // Also call other seeders if needed (but currently they are empty)
+        $this->call(FuelSeeder::class);
     }
 }
