@@ -96,6 +96,8 @@ class FuelEntryController extends Controller
 
         $this->afterEntryChange($entry);
 
+        event(new \App\Events\Domain\FuelEntrySubmittedEvent($entry, auth()->id()));
+
         return response()->json([
             'success' => true,
             'message' => 'Fuel entry recorded successfully',
@@ -165,6 +167,8 @@ class FuelEntryController extends Controller
         ]);
         $fuelEntry = $this->anomalies->inspect($fuelEntry);
         $this->afterEntryChange($fuelEntry);
+
+        event(new \App\Events\Domain\FuelApprovedEvent($fuelEntry, auth()->id()));
 
         return response()->json([
             'success' => true,

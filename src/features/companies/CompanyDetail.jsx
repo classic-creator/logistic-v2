@@ -185,15 +185,15 @@ export const CompanyDetail = () => {
 
       {/* KPI Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Total Orders" value={stats.orderCount} subtitle="Placed by this client" icon={FileText} color="indigo" />
-        <StatCard title="Trips Dispatched" value={stats.tripCount} subtitle={`${stats.completedCount} completed`} icon={Truck} color="sky" />
-        <StatCard title="Revenue Generated" value={`₹${stats.revenue.toLocaleString('en-IN')}`} subtitle="All invoiced billing" icon={IndianRupee} color="emerald" />
-        <StatCard title="Outstanding Receivables" value={`₹${stats.outstanding.toLocaleString('en-IN')}`} subtitle={`${formatCurrency(stats.received)} received`} icon={Wallet} color="amber" />
+        <StatCard title="Total Orders" value={stats.orderCount || 0} subtitle="Placed by this client" icon={FileText} color="indigo" />
+        <StatCard title="Trips Dispatched" value={stats.tripCount || 0} subtitle={`${stats.completedCount || 0} completed`} icon={Truck} color="sky" />
+        <StatCard title="Revenue Generated" value={`₹${(stats.revenue || 0).toLocaleString('en-IN')}`} subtitle="All invoiced billing" icon={IndianRupee} color="emerald" />
+        <StatCard title="Outstanding Receivables" value={`₹${(stats.outstanding || 0).toLocaleString('en-IN')}`} subtitle={`${formatCurrency(stats.received)} received`} icon={Wallet} color="amber" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Net Profit" value={`₹${stats.profit.toLocaleString('en-IN')}`} subtitle="Revenue minus operating cost" icon={Award} color="emerald" />
-        <StatCard title="Profit Margin" value={`${stats.margin.toFixed(1)}%`} subtitle="Net over gross billing" icon={TrendingUp} color="violet" />
+        <StatCard title="Net Profit" value={`₹${(stats.profit || 0).toLocaleString('en-IN')}`} subtitle="Revenue minus operating cost" icon={Award} color="emerald" />
+        <StatCard title="Profit Margin" value={`${Number(stats.margin || 0).toFixed(1)}%`} subtitle="Net over gross billing" icon={TrendingUp} color="violet" />
         <StatCard title="Avg Order Value" value={`₹${stats.orderCount ? Math.round(stats.revenue / stats.orderCount).toLocaleString('en-IN') : 0}`} subtitle="Revenue per order" icon={TrendingUp} color="sky" />
         <StatCard title="First Order" value={stats.orders.length ? stats.orders[stats.orders.length - 1]?.deliveryDate || '—' : '—'} subtitle="Oldest recorded" icon={Calendar} color="amber" />
       </div>

@@ -16,9 +16,9 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger("company_id")->nullable();
             $table->unsignedBigInteger("branch_id")->nullable();
-            $table->string("state")->nullable();
-            $table->string("city")->nullable();
-            $table->string("fuel_type")->default("Diesel");
+            $table->string("state", 100)->nullable();
+            $table->string("city", 80)->nullable();
+            $table->string("fuel_type", 30)->default("Diesel");
             $table->decimal("price_per_liter", 10, 2);
             $table->date("effective_from")->nullable();
             $table->date("effective_to")->nullable();

@@ -21,6 +21,7 @@ class UpdateFuelEntryRequest extends FormRequest {
             'longitude' => 'nullable|numeric|between:-180,180',
             'filled_at' => 'nullable|date',
             'status' => 'nullable|in:Pending,Approved,Rejected',
+            'receipt_path' => 'nullable|string|max:2048',
         ];
     }
 }

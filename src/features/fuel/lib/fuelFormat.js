@@ -1,12 +1,29 @@
 // Shared formatting helpers for the Fuel Intelligence System.
 
-export const formatCurrency = (value, compact = false) => {
-  const num = Number(value || 0);
+export const formatCurrency = (value, compact = false, decimals = 0) => {
+  if (value === null || value === undefined) return '₹0';
+  if (typeof value === 'string' && value.trim().startsWith('₹')) return value;
+
+  let cleanStr = String(value).replace(/[^0-9.-]/g, '');
+  const num = parseFloat(cleanStr);
+
+  if (isNaN(num)) return '₹0';
+
+  const isNegative = num < 0;
+  const abs = Math.abs(num);
+
   if (compact) {
-    if (num >= 100000) return `₹${(num / 100000).toFixed(2)}L`;
-    if (num >= 1000) return `₹${(num / 1000).toFixed(1)}k`;
+    if (abs >= 10000000) return `${isNegative ? '-' : ''}₹${(abs / 10000000).toFixed(2)} Cr`;
+    if (abs >= 100000) return `${isNegative ? '-' : ''}₹${(abs / 100000).toFixed(2)} L`;
+    if (abs >= 1000) return `${isNegative ? '-' : ''}₹${(abs / 1000).toFixed(1)}k`;
   }
-  return `₹${num.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+
+  const formatted = abs.toLocaleString('en-IN', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+
+  return `${isNegative ? '-' : ''}₹${formatted}`;
 };
 
 export const formatNumber = (value, digits = 0) =>

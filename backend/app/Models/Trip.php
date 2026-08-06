@@ -5,11 +5,39 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\PredictionHistory;
+use App\Jobs\GeneratePredictionJob;
+use App\Jobs\RecalculateStatisticsJob;
 
 class Trip extends Model
 {
     use HasFactory, SoftDeletes;
     protected $guarded = [];
+
+    protected static function booted()
+    {
+        static::saved(function ($trip) {
+            if ($trip->vehicle) {
+                $trip->vehicle->updateLastOdometerFromHistory();
+            }
+        });
+
+        static::deleted(function ($trip) {
+            if ($trip->vehicle) {
+                $trip->vehicle->updateLastOdometerFromHistory();
+            }
+        });
+
+        static::created(function ($trip) {
+            GeneratePredictionJob::dispatch($trip);
+        });
+
+        static::updated(function ($trip) {
+            if ($trip->isDirty('status') && $trip->status === 'Completed') {
+                RecalculateStatisticsJob::dispatch($trip);
+            }
+        });
+    }
 
     protected $casts = [
         'pickup_date' => 'date',
@@ -39,6 +67,7 @@ class Trip extends Model
     public function financeLedger() { return $this->hasOne(FinanceLedger::class); }
     public function fuelEntries() { return $this->hasMany(FuelEntry::class); }
     public function fuelPrice() { return $this->belongsTo(FuelPrice::class); }
+    public function prediction() { return $this->belongsTo(PredictionHistory::class, 'prediction_id'); }
 
     /**
      * Approved fuel quantity/cost for this trip.

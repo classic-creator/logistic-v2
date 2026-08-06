@@ -6,7 +6,7 @@ class StoreFuelEntryRequest extends FormRequest {
     public function rules() {
         return [
             'trip_id' => 'nullable|exists:trips,id',
-            'vehicle_id' => 'required_without:trip_id|exists:vehicles,id',
+            'vehicle_id' => 'nullable|exists:vehicles,id',
             'driver_id' => 'nullable|exists:drivers,id',
             'company_id' => 'nullable|exists:companies,id',
             'fuel_type' => 'nullable|in:Diesel,Petrol,CNG,Electric',
@@ -21,6 +21,7 @@ class StoreFuelEntryRequest extends FormRequest {
             'longitude' => 'nullable|numeric|between:-180,180',
             'filled_at' => 'nullable|date',
             'status' => 'nullable|in:Pending,Approved,Rejected',
+            'receipt_path' => 'nullable|string|max:2048',
         ];
     }
 }

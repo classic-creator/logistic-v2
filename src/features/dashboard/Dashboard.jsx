@@ -195,9 +195,20 @@ export const Dashboard = () => {
   }
 
   // Format currency
-  const formatCurrency = (num) => {
-    if (num >= 100000) return `₹${(num / 100000).toFixed(2)} Lakh`;
-    return `₹${num.toLocaleString('en-IN')}`;
+  const formatCurrency = (val, compact = false, decimals = 0) => {
+    if (val === null || val === undefined) return '₹0';
+    if (typeof val === 'string' && val.trim().startsWith('₹')) return val;
+    let strVal = String(val).replace(/[^0-9.-]/g, '');
+    const num = parseFloat(strVal);
+    if (isNaN(num)) return '₹0';
+    const isNeg = num < 0;
+    const abs = Math.abs(num);
+    if (compact) {
+      if (abs >= 10000000) return `${isNeg ? '-' : ''}₹${(abs / 10000000).toFixed(2)} Cr`;
+      if (abs >= 100000) return `${isNeg ? '-' : ''}₹${(abs / 100000).toFixed(2)} L`;
+      if (abs >= 1000) return `${isNeg ? '-' : ''}₹${(abs / 1000).toFixed(1)}k`;
+    }
+    return `${isNeg ? '-' : ''}₹${abs.toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
   };
 
   const statusColors = {
@@ -344,10 +355,10 @@ export const Dashboard = () => {
         />
         <StatCard
           title="Total Revenue"
-          value={formatCurrency(stats.netProfit)}
+          value={formatCurrency(stats.totalRev)}
           change="+18.4%"
           changeType="positive"
-          subtitle="Net Margins ledger"
+          subtitle={`Net Profit: ${formatCurrency(stats.netProfit)}`}
           icon={DollarSign}
           color="amber"
         />
@@ -374,15 +385,15 @@ export const Dashboard = () => {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
               <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block">Today's Est. Fuel</span>
-              <span className="text-lg font-extrabold font-mono text-indigo-300">₹{Number(fuelDash?.today?.estimatedFuelCost || 0).toLocaleString('en-IN')}</span>
+              <span className="text-lg font-extrabold font-mono text-indigo-300">{formatCurrency(fuelDash?.today?.estimatedFuelCost)}</span>
             </div>
             <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
               <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block">Today's Actual Fuel</span>
-              <span className="text-lg font-extrabold font-mono text-amber-300">₹{Number(fuelDash?.today?.actualFuelCost || 0).toLocaleString('en-IN')}</span>
+              <span className="text-lg font-extrabold font-mono text-amber-300">{formatCurrency(fuelDash?.today?.actualFuelCost)}</span>
             </div>
             <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
               <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block">Monthly Fuel Expense</span>
-              <span className="text-lg font-extrabold font-mono text-emerald-400">₹{Number(fuelDash?.month?.actualFuelCost || 0).toLocaleString('en-IN')}</span>
+              <span className="text-lg font-extrabold font-mono text-emerald-400">{formatCurrency(fuelDash?.month?.actualFuelCost)}</span>
             </div>
             <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
               <div className="flex justify-between items-center">
@@ -395,8 +406,8 @@ export const Dashboard = () => {
               </div>
               <div className="flex justify-between items-center border-t border-slate-800 pt-2">
                 <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Today Δ</span>
-                <span className={`font-mono font-bold ${Number(fuelDash?.today?.difference || 0) > 0 ? 'text-accent-rose' : 'text-accent-emerald'}`}>
-                  ₹{Math.abs(Number(fuelDash?.today?.difference || 0)).toLocaleString('en-IN')}
+                <span className={`font-mono font-bold ${(fuelDash?.today?.difference || 0) > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                  {formatCurrency(fuelDash?.today?.difference)}
                 </span>
               </div>
             </div>

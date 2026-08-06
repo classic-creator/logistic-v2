@@ -113,6 +113,19 @@ export const useDeleteFuelEntry = () => {
   });
 };
 
+export const useParseFuelReceipt = () => {
+  return useMutation({
+    mutationFn: async (formData) => {
+      const response = await apiClient.post('/api/v1/fuel-entries/parse-receipt', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data?.data;
+    },
+  });
+};
+
 // --- FUEL PRICES SERVICE ---
 export const useFuelPrices = (params = {}) => {
   return useQuery({

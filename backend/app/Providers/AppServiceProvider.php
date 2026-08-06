@@ -21,5 +21,12 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Schema::defaultStringLength(191);
+
+        \Illuminate\Support\Facades\Event::listen('*', function ($eventName, array $data) {
+            $event = $data[0] ?? null;
+            if ($event instanceof \App\Events\Domain\BaseDomainEvent) {
+                app(\App\Services\NotificationEngine::class)->processEvent($event);
+            }
+        });
     }
 }

@@ -33,10 +33,12 @@ import Input from '../../components/common/Input';
 const REPORT_GROUPS = [
   {
     label: 'Overview',
+    color: 'text-indigo-300 border-indigo-500/30 bg-indigo-500/10',
     items: [{ path: '/reports', end: true, label: 'Executive', icon: LayoutDashboard }],
   },
   {
     label: 'Operations',
+    color: 'text-sky-300 border-sky-500/30 bg-sky-500/10',
     items: [
       { path: '/reports/trips', label: 'Trips', icon: Map },
       { path: '/reports/routes', label: 'Routes', icon: RouteIcon },
@@ -45,6 +47,7 @@ const REPORT_GROUPS = [
   },
   {
     label: 'Financial',
+    color: 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10',
     items: [
       { path: '/reports/revenue', label: 'Revenue', icon: IndianRupee },
       { path: '/reports/expenses', label: 'Expenses', icon: Wallet },
@@ -53,6 +56,7 @@ const REPORT_GROUPS = [
   },
   {
     label: 'Resources',
+    color: 'text-amber-300 border-amber-500/30 bg-amber-500/10',
     items: [
       { path: '/reports/vehicles', label: 'Vehicles', icon: Truck },
       { path: '/reports/drivers', label: 'Drivers', icon: Users },
@@ -188,22 +192,39 @@ export const ReportsLayout = () => {
         </section>
 
         {/* Grouped report navigation */}
-        <nav className="rounded-xl border border-slate-800/90 bg-slate-900/45 p-2.5 print:hidden" aria-label="Report sections">
-          <div className="flex flex-wrap gap-2">
+        <nav
+          className="relative rounded-2xl border border-slate-800/90 bg-slate-900/60 p-2 backdrop-blur-xl shadow-xl print:hidden overflow-x-auto custom-scrollbar"
+          aria-label="Report sections"
+        >
+          <div className="flex items-center gap-3 min-w-max">
             {REPORT_GROUPS.map((group) => (
-              <div key={group.label} className="flex min-w-0 items-center gap-1.5 rounded-lg border border-slate-800/80 bg-slate-950/30 p-1">
-                <span className="px-2 text-[9px] font-extrabold uppercase tracking-[0.16em] text-slate-600">{group.label}</span>
-                {group.items.map((tab) => (
-                  <NavLink
-                    key={tab.path}
-                    to={tab.path}
-                    end={tab.end}
-                    className={({ isActive }) => `inline-flex items-center gap-1.5 rounded-md px-2.5 py-2 text-[10px] font-bold uppercase tracking-wider transition-all ${isActive ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-950/40' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}`}
-                  >
-                    <tab.icon size={13} />
-                    {tab.label}
-                  </NavLink>
-                ))}
+              <div
+                key={group.label}
+                className="flex items-center gap-1.5 rounded-xl border border-slate-800/80 bg-slate-950/40 p-1.5"
+              >
+                <div className={`px-2.5 py-1 rounded-lg border text-[10px] font-extrabold uppercase tracking-wider flex items-center gap-1 ${group.color}`}>
+                  <span>{group.label}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  {group.items.map((tab) => (
+                    <NavLink
+                      key={tab.path}
+                      to={tab.path}
+                      end={tab.end}
+                      className={({ isActive }) => `
+                        relative inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold transition-all duration-200 cursor-pointer
+                        ${
+                          isActive
+                            ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/25 ring-1 ring-indigo-400/40 scale-[1.02]'
+                            : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/70'
+                        }
+                      `}
+                    >
+                      <tab.icon size={14} className="stroke-[2.2px]" />
+                      <span>{tab.label}</span>
+                    </NavLink>
+                  ))}
+                </div>
               </div>
             ))}
           </div>

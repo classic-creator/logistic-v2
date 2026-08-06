@@ -1,11 +1,10 @@
-import { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
+import { useTripFuelBreakdown } from '../../services/fuelServices';
 import { FuelVarianceBadge } from './FuelVarianceBadge';
 import { FuelTimeline } from './FuelTimeline';
 import { FuelEntryForm } from './FuelEntryForm';
 import { formatCurrency, formatLiters, formatKmPerLiter } from './lib/fuelFormat';
-import Button from '../../components/common/Button';
-import Modal from '../../components/common/Modal';
-import { Fuel, Calculator, ArrowRightLeft, Gauge, PlusCircle } from 'lucide-react';
+import { Fuel, Calculator, ArrowRightLeft, Gauge, Brain, Sparkles, Award, MapPin } from 'lucide-react';
 
 const CompareRow = ({ label, estimated, actual, unit = '', goodWhen }) => {
   const diff = actual - estimated;
@@ -32,37 +31,39 @@ const CompareRow = ({ label, estimated, actual, unit = '', goodWhen }) => {
 };
 
 export const TripFuelPanel = ({ trip }) => {
-  const [showEntry, setShowEntry] = useState(false);
+  const { data: breakdown } = useTripFuelBreakdown(trip.id);
 
   const data = useMemo(() => {
-    const estimatedLiters = Number(trip.estimatedFuelLiters || 0);
-    const estimatedCost = Number(trip.estimatedFuelCost || 0);
-    const estimatedDistance = Number(trip.estimatedDistance || trip.distance || 0);
-    const estimatedMileage = Number(trip.estimatedMileage || 0);
+    const estLiters = breakdown?.estimate?.fuelLiters ?? Number(trip.estimatedFuelLiters || 0);
+    const estCost = breakdown?.estimate?.fuelCost ?? Number(trip.estimatedFuelCost || 0);
+    const estDistance = breakdown?.estimate?.distance ?? Number(trip.estimatedDistance || trip.distance || 0);
+    const estMileage = breakdown?.estimate?.mileage ?? Number(trip.estimatedMileage || 0);
 
-    const entries = (trip.fuelEntries || []).filter((e) => e.status === 'Approved');
-    const actualLiters = entries.reduce((s, e) => s + Number(e.quantity || 0), 0);
-    const actualCost = entries.reduce((s, e) => s + Number(e.total_cost || e.totalCost || 0), 0);
-    const actualDistance = Number(trip.actualDistance || (trip.startOdometer && trip.endOdometer ? trip.endOdometer - trip.startOdometer : trip.distance || 0));
-    const actualMileage = actualLiters > 0 ? actualDistance / actualLiters : 0;
+    const actLiters = breakdown?.actual?.fuelLiters ?? (trip.fuelEntries || []).filter(e => e.status === 'Approved').reduce((s, e) => s + Number(e.quantity || 0), 0);
+    const actCost = breakdown?.actual?.fuelCost ?? (trip.fuelEntries || []).filter(e => e.status === 'Approved').reduce((s, e) => s + Number(e.total_cost || e.totalCost || 0), 0);
+    const actDistance = breakdown?.actual?.distance ?? Number(trip.actualDistance || (trip.startOdometer && trip.endOdometer ? trip.endOdometer - trip.startOdometer : trip.distance || 0));
+    const actMileage = breakdown?.actual?.mileage ?? (actLiters > 0 ? actDistance / actLiters : 0);
 
-    const fuelVariancePct = estimatedLiters > 0 ? ((actualLiters - estimatedLiters) / estimatedLiters) * 100 : 0;
-    const costVariancePct = estimatedCost > 0 ? ((actualCost - estimatedCost) / estimatedCost) * 100 : 0;
+    const fuelVariancePct = breakdown?.variance?.fuelLitersPct ?? (estLiters > 0 ? ((actLiters - estLiters) / estLiters) * 100 : 0);
+    const costVariancePct = breakdown?.variance?.fuelCostPct ?? (estCost > 0 ? ((actCost - estCost) / estCost) * 100 : 0);
+
+    const intel = breakdown?.intelligence || {};
 
     return {
-      estimatedLiters,
-      estimatedCost,
-      estimatedDistance,
-      estimatedMileage,
-      actualLiters,
-      actualCost,
-      actualDistance,
-      actualMileage,
+      estimatedLiters: estLiters,
+      estimatedCost: estCost,
+      estimatedDistance: estDistance,
+      estimatedMileage: estMileage,
+      actualLiters: actLiters,
+      actualCost: actCost,
+      actualDistance: actDistance,
+      actualMileage: actMileage,
       fuelVariancePct,
       costVariancePct,
-      entries,
+      intel,
+      entries: breakdown?.entries || trip.fuelEntries || [],
     };
-  }, [trip]);
+  }, [trip, breakdown]);
 
   const pctUsed = data.estimatedLiters > 0 ? Math.min(100, (data.actualLiters / data.estimatedLiters) * 100) : 0;
   const costPctUsed = data.estimatedCost > 0 ? Math.min(100, (data.actualCost / data.estimatedCost) * 100) : 0;
@@ -72,28 +73,86 @@ export const TripFuelPanel = ({ trip }) => {
 
   return (
     <div className="glass-panel rounded-xl p-5 border border-slate-800 space-y-5">
-      {/* Header */}
+      {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
-        <h3 className="text-sm font-bold text-slate-100 font-display flex items-center gap-2">
-          <Fuel size={16} className="text-accent-amber" />
-          Fuel Intelligence
-        </h3>
+        <div className="flex items-center gap-2">
+          <div className="p-2 bg-indigo-500/10 rounded-lg text-accent-indigo">
+            <Brain size={18} />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-slate-100 font-display flex items-center gap-2">
+              Fuel Intelligence Engine
+              <span className="bg-indigo-500/15 text-indigo-300 border border-indigo-500/20 px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1">
+                <Sparkles size={10} /> AI Synced
+              </span>
+            </h3>
+            <p className="text-[11px] text-slate-400">Live AI prediction, EWMA learned mileage, and budget sync.</p>
+          </div>
+        </div>
         <div className="flex items-center gap-2">
           <FuelVarianceBadge actual={data.actualLiters} estimated={data.estimatedLiters} />
           {trip.status !== 'Cancelled' && (
-            <Button variant="outline" size="sm" onClick={() => setShowEntry(true)} className="flex items-center gap-1">
-              <PlusCircle size={13} />
-              Add Fuel
-            </Button>
+            <FuelEntryForm trip={trip} />
           )}
         </div>
       </div>
 
-      {/* Progress bars */}
+      {/* AI Intelligence Micro Strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+        <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 space-y-1">
+          <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block flex items-center gap-1">
+            <Brain size={10} className="text-indigo-400" /> Learned Vehicle Spec
+          </span>
+          <div className="font-mono font-bold text-indigo-300 text-sm">
+            {formatKmPerLiter(data.intel.learnedVehicleMileage || 8.0)}
+          </div>
+          <span className="text-[10px] text-slate-500 block">
+            {Math.round((data.intel.vehicleConfidence || 0.75) * 100)}% Model Confidence
+          </span>
+        </div>
+
+        <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 space-y-1">
+          <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block flex items-center gap-1">
+            <Award size={10} className="text-emerald-400" /> Driver Efficiency Score
+          </span>
+          <div className="font-mono font-bold text-emerald-400 text-sm">
+            {data.intel.driverEfficiencyScore || 80} / 100
+          </div>
+          <span className="text-[10px] text-slate-500 block">
+            Trip Score: {data.intel.fuelScore || 75} pts
+          </span>
+        </div>
+
+        <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 space-y-1">
+          <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block flex items-center gap-1">
+            <MapPin size={10} className="text-sky-400" /> Route Benchmark
+          </span>
+          <div className="font-mono font-bold text-sky-400 text-sm">
+            {formatKmPerLiter(data.intel.routeAvgMileage || 8.0)}
+          </div>
+          <span className="text-[10px] text-slate-500 block">
+            Avg Cost: {formatCurrency(data.intel.routeAvgCost || data.estimatedCost)}
+          </span>
+        </div>
+
+        <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 space-y-1">
+          <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block flex items-center gap-1">
+            <Calculator size={10} className="text-amber-400" /> Allocated Fuel Budget
+          </span>
+          <div className="font-mono font-bold text-amber-400 text-sm">
+            {formatCurrency(data.intel.fuelBudget || (data.estimatedCost * 1.1))}
+          </div>
+          <span className="text-[10px] text-slate-500 block">
+            Includes 10% Contingency Buffer
+          </span>
+        </div>
+      </div>
+
+      {/* Progress Bars */}
       <div className="space-y-3">
         <div>
           <div className="flex justify-between text-[11px] mb-1.5">
-            <span className="text-slate-500 font-bold uppercase tracking-wider">Fuel Budget Used</span>
+            <span className="text-slate-500 font-bold uppercase tracking-wider">Fuel Volume Consumed</span>
             <span className="font-mono font-bold text-slate-300">{formatLiters(data.actualLiters)} / {formatLiters(data.estimatedLiters)}</span>
           </div>
           <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
@@ -102,7 +161,7 @@ export const TripFuelPanel = ({ trip }) => {
         </div>
         <div>
           <div className="flex justify-between text-[11px] mb-1.5">
-            <span className="text-slate-500 font-bold uppercase tracking-wider">Cost Budget Used</span>
+            <span className="text-slate-500 font-bold uppercase tracking-wider">Cost Budget Consumed</span>
             <span className="font-mono font-bold text-slate-300">{formatCurrency(data.actualCost)} / {formatCurrency(data.estimatedCost)}</span>
           </div>
           <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
@@ -111,10 +170,10 @@ export const TripFuelPanel = ({ trip }) => {
         </div>
       </div>
 
-      {/* Variance summary chips */}
+      {/* Variance Summary Chips */}
       <div className="grid grid-cols-2 gap-3 text-center">
         <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-          <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block">Fuel Variance</span>
+          <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block">Fuel Volume Variance</span>
           <span className={`text-lg font-extrabold font-mono ${Math.abs(data.fuelVariancePct) <= 5 ? 'text-accent-emerald' : data.fuelVariancePct <= 15 ? 'text-accent-amber' : 'text-accent-rose'}`}>
             {data.fuelVariancePct > 0 ? '+' : ''}{data.fuelVariancePct.toFixed(1)}%
           </span>
@@ -127,43 +186,38 @@ export const TripFuelPanel = ({ trip }) => {
         </div>
       </div>
 
-      {/* Estimation vs Actual comparison */}
+      {/* Estimation vs Actual Comparison Table */}
       <div>
         <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-          <Calculator size={12} /> Estimation vs Actual
+          <Calculator size={12} /> Estimation vs Actual Comparison
         </div>
         <CompareRow label="Distance" estimated={data.estimatedDistance} actual={data.actualDistance} unit=" km" goodWhen="high" />
-        <CompareRow label="Fuel" estimated={data.estimatedLiters} actual={data.actualLiters} unit=" L" goodWhen="low" />
-        <CompareRow label="Fuel Cost" estimated={data.estimatedCost} actual={data.actualCost} unit=" ₹" goodWhen="low" />
-        <CompareRow label="Mileage" estimated={data.estimatedMileage} actual={data.actualMileage} unit=" km/L" goodWhen="high" />
+        <CompareRow label="Fuel Volume" estimated={data.estimatedLiters} actual={data.actualLiters} unit=" L" goodWhen="low" />
+        <CompareRow label="Fuel Cost" estimated={formatCurrency(data.estimatedCost)} actual={formatCurrency(data.actualCost)} unit="" goodWhen="low" />
+        <CompareRow label="Efficiency Mileage" estimated={data.estimatedMileage} actual={data.actualMileage} unit=" km/L" goodWhen="high" />
       </div>
 
-      {/* Efficiency summary */}
+      {/* Efficiency Summary */}
       <div className="flex items-center gap-3 p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/15">
         <Gauge size={18} className="text-accent-indigo flex-shrink-0" />
         <div className="text-xs">
-          <span className="text-slate-400 block">Expected Trip Fuel Efficiency</span>
+          <span className="text-slate-400 block">Realized Trip Mileage</span>
           <span className="font-bold text-slate-100 font-mono">
             {data.actualMileage > 0 ? formatKmPerLiter(data.actualMileage) : data.estimatedMileage ? formatKmPerLiter(data.estimatedMileage) : '—'}
             {data.actualMileage > 0 && data.estimatedMileage > 0 && (
-              <span className="text-[10px] text-slate-500 ml-1">({formatKmPerLiter(data.estimatedMileage)} est.)</span>
+              <span className="text-[10px] text-slate-500 ml-1">({formatKmPerLiter(data.estimatedMileage)} predicted)</span>
             )}
           </span>
         </div>
       </div>
 
-      {/* Timeline */}
+      {/* Fuel Log Entries Timeline */}
       <div className="pt-1">
         <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">
-          <ArrowRightLeft size={12} /> Fuel Timeline
+          <ArrowRightLeft size={12} /> Approved Fuel Receipts & Log Timeline
         </div>
-        <FuelTimeline entries={trip.fuelEntries || []} />
+        <FuelTimeline entries={data.entries} />
       </div>
-
-      {/* Add fuel modal */}
-      <Modal isOpen={showEntry} onClose={() => setShowEntry(false)} title={`Add Fuel - Trip #${trip.id}`}>
-        <FuelEntryForm trip={trip} onSaved={() => setShowEntry(false)} />
-      </Modal>
     </div>
   );
 };

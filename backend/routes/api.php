@@ -30,6 +30,7 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('finances', FinanceLedgerController::class);
 
         // --- Fuel Intelligence System ---
+        Route::post('/fuel-entries/parse-receipt', [\App\Http\Controllers\FuelReceiptScannerController::class, 'scan']);
         Route::apiResource('fuel-entries', FuelEntryController::class);
         Route::post('/fuel-entries/{fuelEntry}/approve', [FuelEntryController::class, 'approve']);
         Route::post('/fuel-entries/{fuelEntry}/reject', [FuelEntryController::class, 'reject']);
@@ -43,6 +44,38 @@ Route::prefix('v1')->group(function () {
         Route::get('/fuel/analytics', [FuelIntelligenceController::class, 'analytics']);
         Route::get('/fuel/vehicles/{vehicle}', [FuelIntelligenceController::class, 'vehiclePerformance']);
         Route::get('/fuel/drivers/{driver}', [FuelIntelligenceController::class, 'driverPerformance']);
+        
+        Route::prefix('fuel/intelligence')->group(function () {
+            Route::get('/overview', [FuelIntelligenceController::class, 'intelligenceOverview']);
+            Route::get('/predictions', [FuelIntelligenceController::class, 'predictionHistory']);
+            Route::get('/recommendations', [FuelIntelligenceController::class, 'recommendations']);
+            Route::get('/learning', [FuelIntelligenceController::class, 'learningStatus']);
+            Route::get('/scores', [FuelIntelligenceController::class, 'fuelScores']);
+            Route::get('/variance', [FuelIntelligenceController::class, 'varianceAnalysis']);
+            Route::get('/routes', [FuelIntelligenceController::class, 'routeIntelligence']);
+            Route::get('/customers', [FuelIntelligenceController::class, 'customerIntelligence']);
+            Route::post('/predict', [FuelIntelligenceController::class, 'predictOnDemand']);
+            Route::post('/recommend', [FuelIntelligenceController::class, 'recommendOnDemand']);
+            Route::get('/anomalies', [FuelIntelligenceController::class, 'anomalyDashboard']);
+            Route::get('/ml-status', [FuelIntelligenceController::class, 'mlModelStatus']);
+            Route::post('/ml-retrain', [FuelIntelligenceController::class, 'mlRetrain']);
+        });
+        // --- Master Notification Engine ---
+        Route::prefix('notifications')->group(function () {
+            Route::get('/', [\App\Http\Controllers\NotificationController::class, 'index']);
+            Route::get('/unread-count', [\App\Http\Controllers\NotificationController::class, 'unreadCount']);
+            Route::patch('/{id}/read', [\App\Http\Controllers\NotificationController::class, 'markAsRead']);
+            Route::post('/mark-all-read', [\App\Http\Controllers\NotificationController::class, 'markAllRead']);
+            Route::patch('/{id}/archive', [\App\Http\Controllers\NotificationController::class, 'archive']);
+            Route::delete('/{id}', [\App\Http\Controllers\NotificationController::class, 'destroy']);
+            Route::get('/logs', [\App\Http\Controllers\NotificationController::class, 'deliveryLogs']);
+            Route::post('/push-subscribe', [\App\Http\Controllers\NotificationController::class, 'pushSubscribe']);
+            Route::post('/push-unsubscribe', [\App\Http\Controllers\NotificationController::class, 'pushUnsubscribe']);
+            Route::get('/vapid-public-key', [\App\Http\Controllers\NotificationController::class, 'getVapidPublicKey']);
+            Route::get('/preferences', [\App\Http\Controllers\NotificationController::class, 'getPreferences']);
+            Route::put('/preferences', [\App\Http\Controllers\NotificationController::class, 'updatePreferences']);
+            Route::post('/trigger-test-event', [\App\Http\Controllers\NotificationController::class, 'triggerTestEvent']);
+        });
     });
 });
 

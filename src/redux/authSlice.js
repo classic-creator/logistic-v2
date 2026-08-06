@@ -1,14 +1,11 @@
 import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
-  user: {
-    name: 'Himangshu Sharma',
-    email: 'h.sharma@logistics-v2.com',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80',
-  },
-  currentRole: 'Super Admin',
+  user: null,
+  currentRole: null,
   availableRoles: ['Super Admin', 'Operations Manager', 'Dispatcher', 'Finance Manager', 'Driver'],
-  activeDriverId: 'DRV-001', // Pre-bound driver for the Driver Workflow simulator
+  activeDriverId: null,
+  isAuthInitialized: false, // Tracks whether the initial token check has completed
 };
 
 const authSlice = createSlice({
@@ -17,10 +14,6 @@ const authSlice = createSlice({
   reducers: {
     setRole: (state, action) => {
       state.currentRole = action.payload;
-      // When switching to driver, ensure we bind to a valid active driver
-      if (action.payload === 'Driver') {
-        state.activeDriverId = 'DRV-001';
-      }
     },
     setActiveDriverId: (state, action) => {
       state.activeDriverId = action.payload;
@@ -28,12 +21,16 @@ const authSlice = createSlice({
     setUser: (state, action) => {
       state.user = action.payload;
     },
+    setAuthInitialized: (state, action) => {
+      state.isAuthInitialized = action.payload;
+    },
     logout: (state) => {
       state.user = null;
       state.currentRole = null;
+      state.activeDriverId = null;
     }
   }
 });
 
-export const { setRole, setActiveDriverId, setUser, logout } = authSlice.actions;
+export const { setRole, setActiveDriverId, setUser, setAuthInitialized, logout } = authSlice.actions;
 export default authSlice.reducer;

@@ -1,75 +1,34 @@
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  useFuelDashboard,
-  useFuelAnalytics,
-  useFuelEntries,
-  useApproveFuelEntry,
-  useRejectFuelEntry,
-} from '../../services/fuelServices';
+import { useIntelligenceOverview } from '../../services/intelligenceServices';
+import { useFuelDashboard, useFuelAnalytics, useApproveFuelEntry, useRejectFuelEntry } from '../../services/fuelServices';
 import StatCard from '../../components/common/StatCard';
 import { CardSkeleton } from '../../components/common/Skeleton';
 import Button from '../../components/common/Button';
-import { Fuel, TrendingUp, TrendingDown, AlertTriangle, IndianRupee, Gauge } from 'lucide-react';
+import { Brain, TrendingDown, Award, Target, AlertTriangle, CheckCircle, IndianRupee, Gauge } from 'lucide-react';
 import { formatCurrency, formatLiters, formatKmPerLiter, statusPillStyles } from './lib/fuelFormat';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import FuelScoreGauge from './components/FuelScoreGauge';
 
 const tooltipStyle = { backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#f1f5f9', fontSize: '12px' };
 
-const ChartBar = ({ title, subtitle, data, dataKey, color = '#f59e0b', name }) => (
-  <div className="glass-panel rounded-xl p-5 border border-slate-800 space-y-4">
-    <div>
-      <h3 className="text-sm font-bold text-slate-100 font-display">{title}</h3>
-      {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
-    </div>
-    <div className="h-[240px] w-full text-xs">
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-          <XAxis dataKey="name" stroke="#64748b" tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} />
-          <YAxis stroke="#64748b" tickLine={false} tickFormatter={(v) => `₹${v / 1000}k`} />
-          <Tooltip contentStyle={tooltipStyle} formatter={(v) => [formatCurrency(v), name]} />
-          <Bar dataKey={dataKey} name={name} fill={color} radius={[4, 4, 0, 0]} maxBarSize={34} />
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-  </div>
-);
-
 export const FuelDashboard = () => {
   const navigate = useNavigate();
+  const { data: intelligenceData, isLoading: intelligenceLoading } = useIntelligenceOverview();
   const { data: dash, isLoading: dashLoading } = useFuelDashboard();
-  const { data: vehicleStats = [], isLoading: vehiclesLoading } = useFuelAnalytics({ dimension: 'vehicle' });
-  const { data: driverStats = [], isLoading: driversLoading } = useFuelAnalytics({ dimension: 'driver' });
   const { data: anomalies, isLoading: anomaliesLoading } = useFuelAnalytics({ dimension: 'anomalies' });
-  const { data: flaggedEntries = [], isLoading: entriesLoading } = useFuelEntries({ flagged: true, per_page: 50 });
   const approveMutation = useApproveFuelEntry();
   const rejectMutation = useRejectFuelEntry();
 
-  const isLoading = dashLoading || vehiclesLoading || driversLoading || anomaliesLoading || entriesLoading;
+  const isLoading = intelligenceLoading || dashLoading || anomaliesLoading;
 
-  const charts = useMemo(() => {
-    const byVehicle = (dash?.byVehicle || []).map((v) => ({ name: `V${v.id}`, cost: v.cost, liters: v.liters }));
-    const byDriver = (dash?.byDriver || []).map((v) => ({ name: `D${v.id}`, cost: v.cost }));
-    const byRoute = (dash?.byRoute || []).slice(0, 6).map((v) => ({ name: v.route, cost: v.cost, mileage: v.mileage }));
-    const byCompany = (dash?.byCompany || []).map((v) => ({ name: `C${v.id}`, cost: v.cost }));
-    return { byVehicle, byDriver, byRoute, byCompany };
+  const costByVehicle = useMemo(() => {
+    return (dash?.byVehicle || []).map(v => ({ name: `V${v.id}`, cost: v.cost })).slice(0, 10);
   }, [dash]);
 
-  const topConsumingVehicles = useMemo(
-    () => [...vehicleStats].sort((a, b) => b.cost - a.cost).slice(0, 5),
-    [vehicleStats]
-  );
-  const topEfficientVehicles = useMemo(
-    () => [...vehicleStats].filter((v) => v.avgMileage > 0).sort((a, b) => b.avgMileage - a.avgMileage).slice(0, 5),
-    [vehicleStats]
-  );
-  const topEfficientDrivers = useMemo(
-    () => [...driverStats].filter((d) => d.avgMileage > 0).sort((a, b) => b.avgMileage - a.avgMileage).slice(0, 5),
-    [driverStats]
-  );
-
-  const anomalyEntries = anomalies?.entries || flaggedEntries;
+  const costByRoute = useMemo(() => {
+    return (dash?.byRoute || []).map(v => ({ name: v.route, cost: v.cost })).slice(0, 6);
+  }, [dash]);
 
   if (isLoading) {
     return (
@@ -82,257 +41,269 @@ export const FuelDashboard = () => {
     );
   }
 
-  const overall = dash?.overall || {};
+  const {
+    fleetScore = 0,
+    predictionAccuracy = 0,
+    savingsOpportunity = 0,
+    todayStats = {},
+    monthlyTrend = [],
+    mileageTrend = [],
+    topDrivers = [],
+    topVehicles = [],
+    topRoutes = [],
+    recentAnomalies = []
+  } = intelligenceData || {};
 
   return (
     <div className="space-y-8 select-none">
-      {/* Header */}
+      {/* Header Bar */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-extrabold font-display tracking-tight text-slate-100 flex items-center gap-3">
-            <Fuel size={28} className="text-accent-amber" />
-            Fuel Intelligence
+            <Brain size={28} className="text-accent-indigo" />
+            Fuel Intelligence Engine
           </h1>
           <p className="text-sm text-slate-400">
-            Real-time fuel estimation, consumption and variance command center.
+            AI-driven fuel optimization, anomaly detection, and predictive analytics.
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => navigate('/reports')} className="gap-1.5">
-            <TrendingUp size={14} /> BI Reports
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={() => navigate('/fuel/variance')} className="gap-1.5 border-slate-700">
+            <TrendingDown size={14} /> Variance Analysis
           </Button>
-          <Button variant="primary" size="sm" onClick={() => navigate('/fuel/analytics')} className="gap-1.5">
-            <TrendingUp size={14} /> Deep Analytics
+          <Button variant="outline" size="sm" onClick={() => navigate('/fuel/scores')} className="gap-1.5 border-slate-700">
+            <Award size={14} /> Scoreboard
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => navigate('/fuel/predictions')} className="gap-1.5 border-slate-700">
+            <Target size={14} /> Predictions
+          </Button>
+          <Button variant="primary" size="sm" onClick={() => navigate('/fuel/learning')} className="gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white">
+            <Brain size={14} /> Learning Insights
           </Button>
         </div>
       </div>
 
-      {/* KPI row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          title="Today's Estimated Fuel Cost"
-          value={formatCurrency(dash?.today?.estimatedFuelCost)}
-          subtitle={`${dash?.today?.trips ?? 0} trips today`}
-          icon={IndianRupee}
-          color="indigo"
-        />
-        <StatCard
-          title="Today's Actual Fuel Cost"
-          value={formatCurrency(dash?.today?.actualFuelCost)}
-          subtitle={`${dash?.today?.entries ?? 0} fills today`}
-          icon={Fuel}
-          color="amber"
-        />
-        <StatCard
-          title="Today's Difference"
-          value={formatCurrency(dash?.today?.difference)}
-          change={`${Math.abs(Number(dash?.today?.difference || 0)) > 0 ? 'vs estimate' : ''}`}
-          changeType={(dash?.today?.difference ?? 0) > 0 ? 'negative' : 'positive'}
-          subtitle={dash?.today?.difference > 0 ? 'Over budget' : 'Under budget'}
-          icon={TrendingDown}
-          color="rose"
-        />
-        <StatCard
-          title="Monthly Fuel Expense"
-          value={formatCurrency(dash?.month?.actualFuelCost)}
-          subtitle={`${dash?.month?.entries ?? 0} fills this month`}
-          icon={IndianRupee}
-          color="emerald"
-        />
+      {/* KPI Strip */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="glass-panel rounded-xl p-5 shadow-lg flex items-center justify-between border-slate-800">
+          <div>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Fleet Fuel Score</span>
+            <div className="mt-2 text-3xl font-bold font-mono text-slate-100">
+              {fleetScore}
+              <span className="text-sm text-slate-500">/100</span>
+            </div>
+          </div>
+          <div className="w-16 h-16">
+            <FuelScoreGauge score={fleetScore} size="sm" />
+          </div>
+        </div>
+        <StatCard title="Prediction Accuracy" value={`${predictionAccuracy}%`} icon={Target} color="indigo" />
+        <StatCard title="Today Est vs Actual" value={formatCurrency(todayStats.difference || 0)} change={todayStats.difference > 0 ? 'Over' : 'Under'} changeType={todayStats.difference > 0 ? 'negative' : 'positive'} subtitle="vs estimate" icon={TrendingDown} color="sky" />
+        <StatCard title="Monthly Savings Opp." value={formatCurrency(savingsOpportunity)} subtitle="Based on AI recs" icon={IndianRupee} color="emerald" />
+        
+        <StatCard title="Active Anomalies" value={recentAnomalies.length} subtitle="Pending review" icon={AlertTriangle} color="rose" />
+        <StatCard title="Learning Confidence" value="High" subtitle="Model actively learning" icon={Brain} color="violet" />
+        <StatCard title="Cost Per KM" value={formatCurrency(dash?.overall?.avgCostPerKm || 0, false, 2)} subtitle="Fleet average" icon={Gauge} color="amber" />
+        <StatCard title="Monthly Expense" value={formatCurrency(dash?.month?.actualFuelCost || 0)} subtitle="Actuals this month" icon={IndianRupee} color="slate" />
       </div>
 
-      {/* Efficiency metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          title="Average Cost / KM"
-          value={`₹${Number(overall.avgCostPerKm || 0).toFixed(2)}`}
-          subtitle="Across approved fills"
-          icon={Gauge}
-          color="sky"
-        />
-        <StatCard
-          title="Average Mileage"
-          value={formatKmPerLiter(overall.avgMileage)}
-          subtitle="Fleet-wide efficiency"
-          icon={Gauge}
-          color="emerald"
-        />
-        <StatCard
-          title="Total Fuel Cost"
-          value={formatCurrency(overall.totalFuelCost)}
-          subtitle={`${formatLiters(overall.totalLiters)} consumed`}
-          icon={IndianRupee}
-          color="amber"
-        />
-        <StatCard
-          title="Flagged Entries"
-          value={anomalies?.totalFlagged ?? 0}
-          change={`${anomalies?.pendingReview ?? 0} pending review`}
-          changeType="negative"
-          subtitle="Anomaly watchlist"
-          icon={AlertTriangle}
-          color="rose"
-        />
-      </div>
-
-      {/* Cost breakdown charts */}
+      {/* Variance Overview */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ChartBar
-          title="Fuel Cost by Vehicle"
-          subtitle="Approved fuel spend per vehicle"
-          data={charts.byVehicle}
-          dataKey="cost"
-          color="#f59e0b"
-          name="Fuel Cost"
-        />
-        <ChartBar
-          title="Fuel Cost by Route"
-          subtitle="Top routes by fuel spend"
-          data={charts.byRoute}
-          dataKey="cost"
-          color="#6366f1"
-          name="Fuel Cost"
-        />
-      </div>
-
-      {/* Rankings */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Top consuming vehicles */}
-        <div className="glass-panel rounded-xl p-5 border border-slate-800 space-y-3">
-          <h3 className="text-sm font-bold text-slate-100 font-display flex items-center gap-2">
-            <TrendingUp size={15} className="text-accent-rose" /> Top Fuel Consuming Vehicles
-          </h3>
-          <div className="space-y-2.5">
-            {topConsumingVehicles.map((v, i) => (
-              <button key={v.id} onClick={() => navigate(`/vehicles/${v.id}`)} className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/40 cursor-pointer text-left">
-                <span className="w-6 h-6 rounded-lg bg-slate-800 text-[10px] font-extrabold text-slate-400 flex items-center justify-center">{i + 1}</span>
-                <div className="flex-1 min-w-0">
-                  <span className="text-xs font-bold text-slate-200 block truncate">{v.vehicleNumber}</span>
-                  <span className="text-[10px] text-slate-500">{formatLiters(v.liters)} · {v.entries} fills</span>
-                </div>
-                <span className="text-xs font-mono font-bold text-rose-400">{formatCurrency(v.cost, true)}</span>
-              </button>
-            ))}
-            {!topConsumingVehicles.length && <p className="text-xs text-slate-500">No data yet.</p>}
+        <div className="glass-panel rounded-xl p-5 border border-slate-800 space-y-4">
+          <div>
+            <h3 className="text-sm font-bold text-slate-100 font-display">Est. vs Actual Fuel Cost</h3>
+            <p className="text-xs text-slate-500">Monthly trend comparison</p>
+          </div>
+          <div className="h-[240px] w-full text-xs">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={monthlyTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorEst" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorAct" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                <XAxis dataKey="month" stroke="#64748b" tickLine={false} />
+                <YAxis stroke="#64748b" tickLine={false} tickFormatter={(v) => `₹${v/1000}k`} />
+                <Tooltip contentStyle={tooltipStyle} formatter={(value) => formatCurrency(value)} />
+                <Area type="monotone" dataKey="estimated" stroke="#6366f1" fillOpacity={1} fill="url(#colorEst)" name="Estimated" />
+                <Area type="monotone" dataKey="actual" stroke="#f59e0b" fillOpacity={1} fill="url(#colorAct)" name="Actual" />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Top efficient vehicles */}
-        <div className="glass-panel rounded-xl p-5 border border-slate-800 space-y-3">
-          <h3 className="text-sm font-bold text-slate-100 font-display flex items-center gap-2">
-            <TrendingUp size={15} className="text-accent-emerald" /> Top Fuel Efficient Vehicles
-          </h3>
-          <div className="space-y-2.5">
-            {topEfficientVehicles.map((v, i) => (
-              <button key={v.id} onClick={() => navigate(`/vehicles/${v.id}`)} className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/40 cursor-pointer text-left">
-                <span className="w-6 h-6 rounded-lg bg-slate-800 text-[10px] font-extrabold text-slate-400 flex items-center justify-center">{i + 1}</span>
-                <div className="flex-1 min-w-0">
-                  <span className="text-xs font-bold text-slate-200 block truncate">{v.vehicleNumber}</span>
-                  <span className="text-[10px] text-slate-500">{v.entries} fills · ₹{v.costPerKm}/km</span>
-                </div>
-                <span className="text-xs font-mono font-bold text-emerald-400">{formatKmPerLiter(v.avgMileage)}</span>
-              </button>
-            ))}
-            {!topEfficientVehicles.length && <p className="text-xs text-slate-500">No efficiency data yet.</p>}
+        <div className="glass-panel rounded-xl p-5 border border-slate-800 space-y-4">
+          <div>
+            <h3 className="text-sm font-bold text-slate-100 font-display">Fleet Mileage Trend</h3>
+            <p className="text-xs text-slate-500">Average km/L over time</p>
           </div>
-        </div>
-
-        {/* Top efficient drivers */}
-        <div className="glass-panel rounded-xl p-5 border border-slate-800 space-y-3">
-          <h3 className="text-sm font-bold text-slate-100 font-display flex items-center gap-2">
-            <TrendingUp size={15} className="text-accent-sky" /> Top Fuel Efficient Drivers
-          </h3>
-          <div className="space-y-2.5">
-            {topEfficientDrivers.map((d, i) => (
-              <button key={d.id} onClick={() => navigate(`/drivers/${d.id}`)} className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/40 cursor-pointer text-left">
-                <span className="w-6 h-6 rounded-lg bg-slate-800 text-[10px] font-extrabold text-slate-400 flex items-center justify-center">{i + 1}</span>
-                <div className="flex-1 min-w-0">
-                  <span className="text-xs font-bold text-slate-200 block truncate">{d.driverName}</span>
-                  <span className="text-[10px] text-slate-500">{formatLiters(d.liters)} · {formatCurrency(d.cost, true)}</span>
-                </div>
-                <span className="text-xs font-mono font-bold text-sky-400">{formatKmPerLiter(d.avgMileage)}</span>
-              </button>
-            ))}
-            {!topEfficientDrivers.length && <p className="text-xs text-slate-500">No efficiency data yet.</p>}
+          <div className="h-[240px] w-full text-xs">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={mileageTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                <XAxis dataKey="month" stroke="#64748b" tickLine={false} />
+                <YAxis stroke="#64748b" tickLine={false} />
+                <Tooltip contentStyle={tooltipStyle} formatter={(value) => `${value} km/L`} />
+                <Line type="monotone" dataKey="mileage" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#0f1524' }} name="Mileage" />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </div>
 
-      {/* Abnormal fuel usage watchlist */}
+      {/* Intelligence Rankings */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="glass-panel rounded-xl p-5 border border-slate-800 space-y-3">
+          <h3 className="text-sm font-bold text-slate-100 font-display text-accent-sky">Top Efficient Drivers</h3>
+          <div className="space-y-2">
+            {topDrivers.map((d, i) => (
+              <div key={d.id || i} className="flex justify-between items-center bg-slate-900/50 p-2 rounded">
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-slate-200">{d.name}</span>
+                  <span className="text-[10px] text-slate-500">{d.avgMileage} km/L</span>
+                </div>
+                <div className="text-xs font-mono font-bold px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded-full">{d.fuelScore} pts</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="glass-panel rounded-xl p-5 border border-slate-800 space-y-3">
+          <h3 className="text-sm font-bold text-slate-100 font-display text-accent-emerald">Top Efficient Vehicles</h3>
+          <div className="space-y-2">
+            {topVehicles.map((v, i) => (
+              <div key={v.id || i} className="flex justify-between items-center bg-slate-900/50 p-2 rounded">
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-slate-200">{v.number}</span>
+                  <span className="text-[10px] text-slate-500">{v.avgMileage} km/L</span>
+                </div>
+                <div className="text-xs font-mono font-bold px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded-full">{v.fuelScore} pts</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="glass-panel rounded-xl p-5 border border-slate-800 space-y-3">
+          <h3 className="text-sm font-bold text-slate-100 font-display text-accent-amber">Most Profitable Routes</h3>
+          <div className="space-y-2">
+            {topRoutes.map((r, i) => (
+              <div key={i} className="flex justify-between items-center bg-slate-900/50 p-2 rounded">
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-slate-200 truncate max-w-[150px]">{r.pickup} → {r.destination}</span>
+                  <span className="text-[10px] text-slate-500">{r.totalTrips} trips</span>
+                </div>
+                <div className="text-xs font-mono font-bold text-emerald-400">{formatCurrency(r.avgProfit, true)} avg</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Cost Breakdown Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="glass-panel rounded-xl p-5 border border-slate-800 space-y-4">
+          <h3 className="text-sm font-bold text-slate-100 font-display">Fuel Cost by Vehicle</h3>
+          <div className="h-[240px] w-full text-xs">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={costByVehicle} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                <XAxis dataKey="name" stroke="#64748b" tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                <YAxis stroke="#64748b" tickLine={false} tickFormatter={(v) => `₹${v / 1000}k`} />
+                <Tooltip contentStyle={tooltipStyle} formatter={(v) => [formatCurrency(v), 'Cost']} />
+                <Bar dataKey="cost" fill="#8b5cf6" radius={[4, 4, 0, 0]} maxBarSize={40} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+        
+        <div className="glass-panel rounded-xl p-5 border border-slate-800 space-y-4">
+          <h3 className="text-sm font-bold text-slate-100 font-display">Fuel Cost by Route</h3>
+          <div className="h-[240px] w-full text-xs">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={costByRoute} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                <XAxis dataKey="name" stroke="#64748b" tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                <YAxis stroke="#64748b" tickLine={false} tickFormatter={(v) => `₹${v / 1000}k`} />
+                <Tooltip contentStyle={tooltipStyle} formatter={(v) => [formatCurrency(v), 'Cost']} />
+                <Bar dataKey="cost" fill="#0ea5e9" radius={[4, 4, 0, 0]} maxBarSize={40} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Anomaly Review Queue */}
       <div className="glass-panel rounded-xl p-5 border border-slate-800 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
           <h3 className="text-sm font-bold text-slate-100 font-display flex items-center gap-2">
             <AlertTriangle size={16} className="text-accent-rose" />
-            Abnormal Fuel Usage — Review Queue
+            Anomaly Review Queue
           </h3>
-          <span className="rounded-full border border-rose-500/20 bg-rose-500/10 px-2.5 py-1 text-[10px] font-bold text-rose-300">
-            {anomalyEntries.length} flagged
+          <span className="bg-rose-500/10 text-rose-300 border border-rose-500/20 px-2 py-0.5 rounded-full text-xs font-bold">
+            {recentAnomalies.length} Pending
           </span>
         </div>
-
-        {anomalyEntries.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-xs border-collapse">
-              <thead>
-                <tr className="text-slate-500 font-bold border-b border-slate-800">
-                  <th className="py-2.5">Entry / Time</th>
-                  <th>Context</th>
-                  <th>Amount</th>
-                  <th>Reason</th>
-                  <th>Status</th>
-                  <th className="text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/50">
-                {anomalyEntries.slice(0, 10).map((entry) => (
-                  <tr key={entry.id} className="text-slate-300">
-                    <td className="py-3">
-                      <span className="block font-mono font-bold text-indigo-400">#{entry.id}</span>
-                      <span className="text-[10px] text-slate-500">{entry.filledAt ? new Date(entry.filledAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}</span>
-                    </td>
-                    <td className="text-[11px]">
-                      <span className="block font-semibold text-slate-200">{entry.vehicle?.number || '—'}</span>
-                      <span className="text-slate-500">{entry.driver?.name || '—'}</span>
-                    </td>
-                    <td className="font-mono font-semibold">
-                      {formatLiters(entry.quantity)}
-                      <span className="block text-accent-amber">{formatCurrency(entry.totalCost)}</span>
-                    </td>
-                    <td className="max-w-[220px]">
+        
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="text-slate-500 font-bold border-b border-slate-800">
+                <th className="py-2.5">ID</th>
+                <th>Vehicle / Driver</th>
+                <th>Quantity / Cost</th>
+                <th>Flags</th>
+                <th>Status</th>
+                <th className="text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/50">
+              {recentAnomalies.map((entry) => (
+                <tr key={entry.id} className="text-slate-300">
+                  <td className="py-3 font-mono text-indigo-400">#{entry.id}</td>
+                  <td>
+                    <div className="font-semibold text-slate-200">{entry.vehicle?.number || entry.vehicleNumber || `Vehicle #${entry.vehicleId}`}</div>
+                    <div className="text-[10px] text-slate-500">{entry.driver?.name || entry.driverName || `Driver #${entry.driverId}`}</div>
+                  </td>
+                  <td>
+                    <div className="font-mono">{entry.quantity} L</div>
+                    <div className="text-[10px] text-amber-400 font-mono">{formatCurrency(entry.totalCost)}</div>
+                  </td>
+                  <td>
+                    <div className="flex flex-col gap-1">
                       {(entry.flags || []).map((f, i) => (
-                        <span key={i} className="block text-[10px] text-accent-rose font-semibold">{f.message || f.rule}</span>
+                        <span key={i} className="text-[10px] bg-rose-500/20 text-rose-400 px-1.5 py-0.5 rounded max-w-max">
+                          {typeof f === 'object' ? (f.message || f.rule || 'Flagged') : String(f)}
+                        </span>
                       ))}
-                    </td>
-                    <td>
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${statusPillStyles[entry.status] || 'bg-slate-800 text-slate-400'}`}>
-                        {entry.status}
-                      </span>
-                    </td>
-                    <td className="text-right">
-                      <div className="flex justify-end gap-1.5">
-                        {entry.status === 'Pending' && (
-                          <>
-                            <Button variant="success" size="sm" className="!px-2.5 !py-1 text-[10px]" isLoading={approveMutation.isPending} onClick={() => approveMutation.mutate(entry.id)}>
-                              Approve
-                            </Button>
-                            <Button variant="danger" size="sm" className="!px-2.5 !py-1 text-[10px]" isLoading={rejectMutation.isPending} onClick={() => rejectMutation.mutate(entry.id)}>
-                              Reject
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="py-8 text-center space-y-2">
-            <AlertTriangle size={28} className="mx-auto text-slate-700" />
-            <p className="text-xs font-semibold text-slate-500">No abnormal fuel entries detected. The fleet is running clean.</p>
-          </div>
-        )}
+                    </div>
+                  </td>
+                  <td>
+                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${statusPillStyles[entry.status] || 'bg-slate-800 text-slate-400'}`}>
+                      {entry.status}
+                    </span>
+                  </td>
+                  <td className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button variant="success" size="sm" className="!py-1 !px-2 text-[10px]" isLoading={approveMutation.isPending} onClick={() => approveMutation.mutate(entry.id)}>Approve</Button>
+                      <Button variant="danger" size="sm" className="!py-1 !px-2 text-[10px]" isLoading={rejectMutation.isPending} onClick={() => rejectMutation.mutate(entry.id)}>Reject</Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {recentAnomalies.length === 0 && (
+                <tr>
+                  <td colSpan="6" className="text-center py-6 text-slate-500 text-xs">No pending anomalies detected.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

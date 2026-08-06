@@ -28,50 +28,6 @@ class DatabaseSeeder extends Seeder
             \Spatie\Permission\Models\Role::firstOrCreate(['name' => $roleName]);
         }
 
-        // Create Users and Assign Roles
-        $users = [
-            [
-                'name' => 'System Admin',
-                'email' => 'admin@logistics.com',
-                'password' => bcrypt('password'),
-                'role' => 'Super Admin'
-            ],
-            [
-                'name' => 'Ops Manager',
-                'email' => 'ops@logistics.com',
-                'password' => bcrypt('password'),
-                'role' => 'Operations Manager'
-            ],
-            [
-                'name' => 'Dispatcher John',
-                'email' => 'dispatcher@logistics.com',
-                'password' => bcrypt('password'),
-                'role' => 'Dispatcher'
-            ],
-            [
-                'name' => 'Finance Dept',
-                'email' => 'finance@logistics.com',
-                'password' => bcrypt('password'),
-                'role' => 'Finance Manager'
-            ],
-            [
-                'name' => 'Driver Dave',
-                'email' => 'driver@logistics.com',
-                'password' => bcrypt('password'),
-                'role' => 'Driver'
-            ],
-        ];
-
-        foreach ($users as $userData) {
-            $roleName = $userData['role'];
-            unset($userData['role']);
-            $user = User::firstOrCreate(['email' => $userData['email']], $userData);
-            
-            // Explicitly find the role
-            $role = \Spatie\Permission\Models\Role::findByName($roleName);
-            $user->assignRole($role);
-        }
-
         // Seed Companies
         $companies = [
             [
@@ -149,7 +105,7 @@ class DatabaseSeeder extends Seeder
                 'permit' => 'State',
                 'pollution' => 'PUC-2026',
                 'gps_id' => 'GPS-003',
-                'status' => 'Running'
+                'status' => 'Available'
             ],
             [
                 'number' => 'HR55ZZ1111',
@@ -190,7 +146,7 @@ class DatabaseSeeder extends Seeder
                 'aadhaar' => '9876-5432-1098',
                 'emergency_contact' => '9999977778',
                 'assigned_vehicle' => 'KA03XY9999',
-                'status' => 'On Trip'
+                'status' => 'Available'
             ],
             [
                 'name' => 'Robert Paulson',
@@ -206,6 +162,72 @@ class DatabaseSeeder extends Seeder
 
         foreach ($drivers as $drv) {
             \App\Models\Driver::create($drv);
+        }
+
+        // Create Users and Assign Roles (Moved below drivers to link driver_id foreign keys)
+        $users = [
+            [
+                'name' => 'System Admin',
+                'email' => 'admin@logistics.com',
+                'password' => bcrypt('password'),
+                'role' => 'Super Admin'
+            ],
+            [
+                'name' => 'Ops Manager',
+                'email' => 'ops@logistics.com',
+                'password' => bcrypt('password'),
+                'role' => 'Operations Manager'
+            ],
+            [
+                'name' => 'Dispatcher John',
+                'email' => 'dispatcher@logistics.com',
+                'password' => bcrypt('password'),
+                'role' => 'Dispatcher'
+            ],
+            [
+                'name' => 'Finance Dept',
+                'email' => 'finance@logistics.com',
+                'password' => bcrypt('password'),
+                'role' => 'Finance Manager'
+            ],
+            [
+                'name' => 'Driver Dave',
+                'email' => 'driver@logistics.com',
+                'password' => bcrypt('password'),
+                'role' => 'Driver',
+                'driver_id' => 1
+            ],
+            [
+                'name' => 'John Doe',
+                'email' => 'john@logistics.com',
+                'password' => bcrypt('password'),
+                'role' => 'Driver',
+                'driver_id' => 1
+            ],
+            [
+                'name' => 'Jane Smith',
+                'email' => 'jane@logistics.com',
+                'password' => bcrypt('password'),
+                'role' => 'Driver',
+                'driver_id' => 2
+            ],
+            [
+                'name' => 'Robert Paulson',
+                'email' => 'robert@logistics.com',
+                'password' => bcrypt('password'),
+                'role' => 'Driver',
+                'driver_id' => 3
+            ],
+        ];
+
+        foreach ($users as $userData) {
+            $roleName = $userData['role'];
+            unset($userData['role']);
+            $user = User::firstOrCreate(['email' => $userData['email']], $userData);
+            
+            // Explicitly find the role
+            $role = \Spatie\Permission\Models\Role::findByName($roleName);
+            $user->assignRole($role);
         }
 
         // Seed Orders
@@ -228,7 +250,7 @@ class DatabaseSeeder extends Seeder
                 'weight' => '15 Tons',
                 'vehicle_type_required' => 'Container',
                 'expected_price' => 45000.00,
-                'status' => 'Dispatched'
+                'status' => 'Completed'
             ],
             [
                 'company_id' => 3,
@@ -326,6 +348,8 @@ class DatabaseSeeder extends Seeder
         }
 
         // Also call other seeders if needed (but currently they are empty)
+        $this->call(TestUserSeeder::class);
         $this->call(FuelSeeder::class);
+        $this->call(IntelligenceSeeder::class);
     }
 }

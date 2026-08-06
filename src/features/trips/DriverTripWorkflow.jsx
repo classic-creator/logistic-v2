@@ -49,12 +49,12 @@ export const DriverTripWorkflow = () => {
 
   // Find active running/assigned trip for this driver
   const activeTrip = useMemo(() => {
-    if (!trips) return null;
-    return trips.find(t => t.driverId === activeDriverId && ['Assigned', 'Running', 'Delivered'].includes(t.status));
+    if (!trips || !activeDriverId) return null;
+    return trips.find(t => String(t.driverId) === String(activeDriverId) && ['Assigned', 'Running', 'Delivered'].includes(t.status));
   }, [trips, activeDriverId]);
 
   const currentDriver = useMemo(
-    () => (drivers || []).find(d => d.id === activeDriverId),
+    () => (drivers || []).find(d => String(d.id) === String(activeDriverId)),
     [drivers, activeDriverId]
   );
 
@@ -354,10 +354,7 @@ export const DriverTripWorkflow = () => {
                 <h3 className="text-base font-bold text-slate-100">Fuel Refill</h3>
                 <p className="text-xs text-slate-500">Log fuel purchases instantly — vehicle, trip and driver are pre-filled.</p>
               </div>
-              <Button variant="warning" size="sm" onClick={() => setFuelOpen(true)} className="flex items-center gap-1.5">
-                <Fuel size={14} />
-                Add Fuel
-              </Button>
+              <FuelEntryForm trip={activeTrip} />
             </div>
             {activeTrip.estimatedFuelLiters > 0 && (
               <div className="flex items-center justify-between p-3 rounded-lg bg-indigo-500/5 border border-indigo-500/15 text-[11px]">
@@ -371,11 +368,6 @@ export const DriverTripWorkflow = () => {
               <FuelTimeline entries={activeTrip.fuelEntries} />
             )}
           </div>
-
-          {/* Fuel entry modal */}
-          <Modal isOpen={fuelOpen} onClose={() => setFuelOpen(false)} title={`Add Fuel — Trip #${activeTrip.id}`}>
-            <FuelEntryForm trip={activeTrip} onSaved={() => setFuelOpen(false)} />
-          </Modal>
 
           {/* Delivery form completion card */}
           <div className="glass-panel rounded-xl p-6 border border-slate-800 space-y-5 bg-slate-900/60">

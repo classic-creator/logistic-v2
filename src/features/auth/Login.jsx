@@ -26,8 +26,17 @@ export const Login = () => {
       'Finance Manager': 'finance@logistics.com',
       'Driver': 'driver@logistics.com'
     };
+
+    const driverEmails = {
+      '1': 'john@logistics.com',
+      '2': 'jane@logistics.com',
+      '3': 'robert@logistics.com'
+    };
     
-    const email = roleEmails[selectedRole];
+    let email = roleEmails[selectedRole];
+    if (selectedRole === 'Driver' && driverId) {
+      email = driverEmails[String(driverId)] || 'driver@logistics.com';
+    }
     
     try {
       const apiClient = (await import('../../services/api')).default;
@@ -38,12 +47,19 @@ export const Login = () => {
       
       const { token, user } = response.data.data;
       localStorage.setItem('ltms_token', token);
+      localStorage.setItem('ltms_role', selectedRole);
       
       dispatch(setRole(selectedRole));
       dispatch(setUser(user));
       
-      if (selectedRole === 'Driver' && driverId) {
-        dispatch(setActiveDriverId(driverId));
+      // Auto-extract the driverId from the backend user token response!
+      const finalDriverId = user.driverId || driverId;
+      
+      if (selectedRole === 'Driver' && finalDriverId) {
+        localStorage.setItem('ltms_driver_id', finalDriverId);
+        dispatch(setActiveDriverId(finalDriverId));
+      } else {
+        localStorage.removeItem('ltms_driver_id');
       }
 
       if (selectedRole === 'Driver') {

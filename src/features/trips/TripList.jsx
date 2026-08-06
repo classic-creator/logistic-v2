@@ -7,7 +7,7 @@ import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import MapContainer from '../../components/common/MapContainer';
 import CreateDispatchForm from './CreateDispatchForm';
-import { Compass, PhoneCall, CheckSquare, XSquare, PlusCircle } from 'lucide-react';
+import { Compass, PhoneCall, CheckSquare, XSquare, PlusCircle, Play } from 'lucide-react';
 
 export const TripList = () => {
   const navigate = useNavigate();
@@ -56,6 +56,16 @@ export const TripList = () => {
       updateTripMutation.mutate({
         id,
         data: { status: 'Cancelled', remarks: 'Cancelled by operations supervisor.' }
+      });
+    }
+  };
+
+  const handleStartTrip = (e, id) => {
+    e.stopPropagation();
+    if (window.confirm('Start this trip manually? Odometer tracking will begin.')) {
+      updateTripMutation.mutate({
+        id,
+        data: { status: 'Running', remarks: 'Trip started manually from operations desk.', startOdometer: 42000 }
       });
     }
   };
@@ -139,15 +149,26 @@ export const TripList = () => {
             </Button>
           ) : (
             row.status === 'Assigned' && ['Super Admin', 'Dispatcher'].includes(currentRole) ? (
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={(e) => handleCancelTrip(e, row.id)}
-                className="flex items-center gap-1 text-xs"
-              >
-                <XSquare size={12} />
-                <span>Cancel</span>
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="success"
+                  size="sm"
+                  onClick={(e) => handleStartTrip(e, row.id)}
+                  className="flex items-center gap-1 text-xs"
+                >
+                  <Play size={12} />
+                  <span>Start Trip</span>
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={(e) => handleCancelTrip(e, row.id)}
+                  className="flex items-center gap-1 text-xs"
+                >
+                  <XSquare size={12} />
+                  <span>Cancel</span>
+                </Button>
+              </div>
             ) : (
               <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider pr-2">
                 Log Closed

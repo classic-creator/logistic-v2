@@ -1,5 +1,6 @@
 import React from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { useTrip, useUpdateTrip } from '../../services/services';
 import TripFuelPanel from '../fuel/TripFuelPanel';
 import MapContainer from '../../components/common/MapContainer';
@@ -22,11 +23,13 @@ import {
   CheckCircle2,
   Ban,
   Route as RouteIcon,
+  Play,
 } from 'lucide-react';
 
 export const TripDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { currentRole } = useSelector((state) => state.auth);
 
   const { data: trip, isLoading } = useTrip(id);
   const updateTripMutation = useUpdateTrip();
@@ -55,6 +58,7 @@ export const TripDetail = () => {
     );
   }
 
+  const isAssigned = trip.status === 'Assigned';
   const isRunning = trip.status === 'Running';
   const isDelivered = trip.status === 'Delivered';
 
@@ -78,6 +82,15 @@ export const TripDetail = () => {
         },
         { onSuccess: () => navigate('/trips') }
       );
+    }
+  };
+
+  const handleStart = () => {
+    if (window.confirm('Start this trip manually? Odometer tracking will begin.')) {
+      updateTripMutation.mutate({
+        id: trip.id,
+        data: { status: 'Running', remarks: 'Trip started manually from operations desk.', startOdometer: 42000 }
+      });
     }
   };
 
@@ -149,6 +162,25 @@ export const TripDetail = () => {
                 Call Driver
               </Button>
             </a>
+          )}
+          {/* Assigned → Start Trip (Proceed) */}
+          {isAssigned && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleStart}
+              isLoading={updateTripMutation.isPending}
+              className="flex items-center gap-1.5"
+            >
+              <Play size={14} />
+              Start Trip
+            </Button>
+          )}
+          {isAssigned && (
+            <Button variant="danger" size="sm" onClick={handleCancel} className="flex items-center gap-1.5">
+              <Ban size={14} />
+              Cancel
+            </Button>
           )}
           {isRunning && (
             <Button variant="secondary" size="sm" onClick={handleMarkDelivered} className="flex items-center gap-1.5">

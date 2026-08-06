@@ -1,0 +1,30 @@
+{
+  "trained_at": "2026-08-06T07:02:19.682378Z",
+  "n_samples": 600,
+  "source": "synthetic",
+  "r2": 0.9996,
+  "mae_liters": 1.579,
+  "rmse_liters": 2.161,
+  "cv_r2_mean": 0.9798,
+  "cv_r2_std": 0.003,
+  "feature_importances": {
+    "distance_km": 74.67,
+    "cargo_load_ratio": 1.03,
+    "driver_score": 0.14,
+    "vehicle_age_km": 0.82,
+    "vehicle_type_encoded": 22.29,
+    "route_terrain": 0.78,
+    "traffic_index": 0.23,
+    "temp_celsius": 0.02
+  },
+  "feature_cols": [
+    "distance_km",
+    "cargo_load_ratio",
+    "driver_score",
+    "vehicle_age_km",
+    "vehicle_type_encoded",
+    "route_terrain",
+    "traffic_index",
+    "temp_celsius"
+  ]
+}

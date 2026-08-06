@@ -233,8 +233,8 @@ export const VehicleDetail = () => {
         />
         <StatCard
           title="Net Generated Profit"
-          value={`₹${vehicleStats.netProfit.toLocaleString('en-IN')}`}
-          change={`${vehicleStats.profitMargin}%`}
+          value={`₹${(vehicleStats.netProfit || 0).toLocaleString('en-IN')}`}
+          change={`${Number(vehicleStats.profitMargin || 0).toFixed(1)}%`}
           changeType="positive"
           subtitle="After maintenance & fuel"
           icon={Award}
@@ -242,7 +242,7 @@ export const VehicleDetail = () => {
         />
         <StatCard
           title="Maintenance Cost"
-          value={`₹${vehicleStats.maintenanceCost.toLocaleString('en-IN')}`}
+          value={`₹${(vehicleStats.maintenanceCost || 0).toLocaleString('en-IN')}`}
           subtitle="Total service center charges"
           icon={PenTool}
           color="amber"

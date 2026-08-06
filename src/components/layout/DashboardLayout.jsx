@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux';
 import Header from './Header';
 import Sidebar from './Sidebar';
 import ErrorBoundary from '../common/ErrorBoundary';
+import NotificationToastBanner from '../notifications/NotificationToastBanner';
 
 export const DashboardLayout = () => {
   const { user } = useSelector((state) => state.auth);
@@ -15,7 +16,10 @@ export const DashboardLayout = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#070a13] text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-[#070a13] text-slate-100 flex flex-col relative">
+      {/* Global Realtime Notification Alert Banner */}
+      <NotificationToastBanner />
+
       {/* Sidebar Navigation */}
       <Sidebar />
 

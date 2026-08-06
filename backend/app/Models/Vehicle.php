@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\VehicleStatistic;
+use App\Models\PredictionHistory;
 
 class Vehicle extends Model
 {
@@ -27,6 +29,8 @@ class Vehicle extends Model
     public function trips() { return $this->hasMany(Trip::class); }
     public function maintenanceLogs() { return $this->hasMany(VehicleMaintenanceLog::class); }
     public function fuelEntries() { return $this->hasMany(FuelEntry::class); }
+    public function statistic() { return $this->hasOne(VehicleStatistic::class); }
+    public function predictions() { return $this->hasManyThrough(PredictionHistory::class, Trip::class); }
 
     /**
      * The mileage figure the estimation engine should trust first.
@@ -49,5 +53,21 @@ class Vehicle extends Model
     public function tankCapacity(): float
     {
         return (float) ($this->tank_capacity ?: 300);
+    }
+
+    /**
+     * Recalculates the vehicle's current odometer reading based on all recorded
+     * trip odometers (start/end) and fuel entry odometers.
+     */
+    public function updateLastOdometerFromHistory(): void
+    {
+        $maxTripStart = (float) $this->trips()->max('start_odometer');
+        $maxTripEnd = (float) $this->trips()->max('end_odometer');
+        $maxFuel = (float) $this->fuelEntries()->max('odometer');
+
+        $maxOdo = max($maxTripStart, $maxTripEnd, $maxFuel);
+        if ($maxOdo > 0) {
+            $this->update(['last_odometer' => $maxOdo]);
+        }
     }
 }

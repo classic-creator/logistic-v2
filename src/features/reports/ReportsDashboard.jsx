@@ -355,8 +355,8 @@ export const ReportsDashboard = () => {
             />
             <StatCard
               title="Operational Profit"
-              value={`₹${reportStats.profit.toLocaleString('en-IN')}`}
-              change={`${reportStats.margin}%`}
+              value={`₹${(reportStats.profit || 0).toLocaleString('en-IN')}`}
+              change={`${reportStats.margin || 0}%`}
               changeType="positive"
               subtitle="Net operational margin"
               icon={IndianRupee}

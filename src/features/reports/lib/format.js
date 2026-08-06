@@ -1,14 +1,30 @@
 // Shared numeric / date formatting helpers for report presentation.
 
-export const formatCurrency = (n, compact = false) => {
-  const num = Number(n || 0);
+export const formatCurrency = (n, compact = false, decimals = 0) => {
+  if (n === null || n === undefined) return '₹0';
+  if (typeof n === 'string' && n.trim().startsWith('₹')) return n;
+
+  let cleanStr = String(n).replace(/[^0-9.-]/g, '');
+  const num = parseFloat(cleanStr);
+
+  if (isNaN(num)) return '₹0';
+
+  const isNegative = num < 0;
+  const abs = Math.abs(num);
+
   if (compact) {
-    if (num >= 1e7) return `₹${(num / 1e7).toFixed(2)} Cr`;
-    if (num >= 1e5) return `₹${(num / 1e5).toFixed(2)} L`;
-    if (num >= 1e3) return `₹${(num / 1e3).toFixed(1)}k`;
-    return `₹${num.toFixed(0)}`;
+    if (abs >= 1e7) return `${isNegative ? '-' : ''}₹${(abs / 1e7).toFixed(2)} Cr`;
+    if (abs >= 1e5) return `${isNegative ? '-' : ''}₹${(abs / 1e5).toFixed(2)} L`;
+    if (abs >= 1e3) return `${isNegative ? '-' : ''}₹${(abs / 1e3).toFixed(1)}k`;
+    return `${isNegative ? '-' : ''}₹${abs.toFixed(0)}`;
   }
-  return `₹${num.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+
+  const formatted = abs.toLocaleString('en-IN', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+
+  return `${isNegative ? '-' : ''}₹${formatted}`;
 };
 
 export const formatNumber = (n) => Number(n || 0).toLocaleString('en-IN');

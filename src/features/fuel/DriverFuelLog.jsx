@@ -16,9 +16,9 @@ export const DriverFuelLog = () => {
   const [syncMsg, setSyncMsg] = useState('');
 
   const activeTrip = useMemo(() => {
-    if (!trips) return null;
+    if (!trips || !activeDriverId) return null;
     return trips.find(
-      (t) => t.driverId === activeDriverId && ['Assigned', 'Running', 'Delivered'].includes(t.status)
+      (t) => String(t.driverId) === String(activeDriverId) && ['Assigned', 'Running', 'Delivered'].includes(t.status)
     );
   }, [trips, activeDriverId]);
 
@@ -132,12 +132,8 @@ export const DriverFuelLog = () => {
             )}
           </div>
 
-          {/* Fuel entry form */}
-          <div className="glass-panel rounded-xl p-5 border border-slate-800 space-y-4">
-            <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
-              <Fuel size={16} className="text-accent-amber" />
-              <h2 className="text-sm font-bold text-slate-100 font-display">Record Fuel Fill</h2>
-            </div>
+          {/* Fuel entry — floating modal triggered by its own button */}
+          <div className="flex justify-center">
             <FuelEntryForm trip={activeTrip} onSaved={() => setSyncMsg('')} />
           </div>
 

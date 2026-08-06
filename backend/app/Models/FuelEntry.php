@@ -5,11 +5,31 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Jobs\RecalculateStatisticsJob;
 
 class FuelEntry extends Model
 {
     use HasFactory, SoftDeletes;
     protected $guarded = [];
+
+    protected static function booted()
+    {
+        static::saved(function ($fuelEntry) {
+            if ($fuelEntry->vehicle) {
+                $fuelEntry->vehicle->updateLastOdometerFromHistory();
+            }
+            
+            if ($fuelEntry->isDirty('status') && $fuelEntry->status === self::STATUS_APPROVED && $fuelEntry->trip && $fuelEntry->trip->status === 'Completed') {
+                RecalculateStatisticsJob::dispatch($fuelEntry->trip);
+            }
+        });
+
+        static::deleted(function ($fuelEntry) {
+            if ($fuelEntry->vehicle) {
+                $fuelEntry->vehicle->updateLastOdometerFromHistory();
+            }
+        });
+    }
 
     protected $casts = [
         'quantity' => 'float',

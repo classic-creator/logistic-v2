@@ -8,6 +8,7 @@ import Modal from '../../components/common/Modal';
 import StatCard from '../../components/common/StatCard';
 import { Edit2, Coins, ArrowUpRight, ArrowDownRight, Wallet, Percent } from 'lucide-react';
 import { useForm } from 'react-hook-form';
+import { formatCurrency } from '../fuel/lib/fuelFormat';
 
 export const FinanceList = () => {
   const { data: finances, isLoading } = useFinances();
@@ -16,7 +17,7 @@ export const FinanceList = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [editingFinance, setEditingFinance] = useState(null);
 
-  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm();
+  const { register, handleSubmit, reset, watch } = useForm();
 
   // Watch inputs for live profit calculations inside the Modal
   const watchTripAmount = watch('tripAmount', 0);
@@ -40,89 +41,93 @@ export const FinanceList = () => {
       Number(watchOther || 0);
     
     const profit = revenue - expenses;
-    const margin = revenue ? ((profit / revenue) * 100).toFixed(1) : 0;
     const pending = revenue - Number(watchReceived || 0);
 
-    return {
-      expenses,
-      profit,
-      margin,
-      pending
-    };
+    return { expenses, profit, pending };
   }, [watchTripAmount, watchDiesel, watchToll, watchAllowance, watchLoading, watchUnloading, watchOther, watchReceived]);
 
-  // Compute ledger header stats
-  const ledgerStats = useMemo(() => {
-    if (isLoading || !finances) return {};
-
-    const totalRev = finances.reduce((sum, f) => sum + (f.tripAmount || 0), 0);
-    const totalExp = finances.reduce((sum, f) => sum + (f.totalExpenses || 0), 0);
-    const outstanding = finances.reduce((sum, f) => sum + (f.pendingAmount || 0), 0);
-    
-    const totalProfit = totalRev - totalExp;
-    const avgMargin = totalRev ? ((totalProfit / totalRev) * 100).toFixed(1) : 0;
-
-    return {
-      totalRev,
-      totalExp,
-      outstanding,
-      avgMargin
-    };
-  }, [finances, isLoading]);
-
-  const handleOpenEdit = (finance) => {
+  const handleEdit = (finance) => {
     setEditingFinance(finance);
-    reset(finance);
+    reset({
+      tripAmount: finance.tripAmount,
+      dieselExpense: finance.dieselExpense,
+      tollExpense: finance.tollExpense,
+      driverAllowance: finance.driverAllowance,
+      loadingCharge: finance.loadingCharge || 0,
+      unloadingCharge: finance.unloadingCharge || 0,
+      otherExpenses: finance.otherExpenses || 0,
+      paymentReceived: finance.paymentReceived,
+      status: finance.status,
+      invoiceNumber: finance.invoiceNumber || '',
+    });
     setIsOpen(true);
   };
 
   const onSubmit = (data) => {
-    // Cast fields to numbers
-    const payload = {
-      tripAmount: Number(data.tripAmount),
-      dieselExpense: Number(data.dieselExpense),
-      tollExpense: Number(data.tollExpense),
-      driverAllowance: Number(data.driverAllowance),
-      loadingCharge: Number(data.loadingCharge),
-      unloadingCharge: Number(data.unloadingCharge),
-      otherExpenses: Number(data.otherExpenses),
-      paymentReceived: Number(data.paymentReceived),
-      remarks: data.remarks
-    };
-
-    updateFinanceMutation.mutate({ id: editingFinance.id, data: payload }, {
-      onSuccess: () => {
-        setIsOpen(false);
-        reset();
+    updateFinanceMutation.mutate(
+      {
+        id: editingFinance.id,
+        data: {
+          tripAmount: Number(data.tripAmount),
+          dieselExpense: Number(data.dieselExpense),
+          tollExpense: Number(data.tollExpense),
+          driverAllowance: Number(data.driverAllowance),
+          loadingCharge: Number(data.loadingCharge),
+          unloadingCharge: Number(data.unloadingCharge),
+          otherExpenses: Number(data.otherExpenses),
+          paymentReceived: Number(data.paymentReceived),
+          status: data.status,
+          invoiceNumber: data.invoiceNumber,
+        },
+      },
+      {
+        onSuccess: () => {
+          setIsOpen(false);
+          setEditingFinance(null);
+        },
       }
-    });
+    );
   };
+
+  // Aggregated Ledger Summary Statistics
+  const ledgerStats = useMemo(() => {
+    if (!finances || finances.length === 0) {
+      return { totalRev: 0, totalExp: 0, outstanding: 0, avgMargin: 0 };
+    }
+    const totalRev = finances.reduce((acc, f) => acc + Number(f.tripAmount || 0), 0);
+    const totalExp = finances.reduce((acc, f) => acc + Number(f.totalExpenses || 0), 0);
+    const totalProfit = totalRev - totalExp;
+    const outstanding = finances.reduce((acc, f) => acc + Number(f.pendingAmount || 0), 0);
+    const avgMargin = totalRev ? ((totalProfit / totalRev) * 100).toFixed(1) : 0;
+
+    return { totalRev, totalExp, outstanding, avgMargin };
+  }, [finances]);
 
   const columns = [
     {
-      header: 'Invoice Code',
+      header: 'Invoice #',
       accessor: 'invoiceNumber',
-      render: (row) => (
-        <div className="space-y-0.5">
-          <span className="font-bold text-slate-200 block">{row.invoiceNumber}</span>
-          <span className="text-[10px] text-slate-500 font-mono tracking-wider uppercase block">TRIP: {row.tripId}</span>
-        </div>
-      )
+      render: (row) => <span className="font-mono text-indigo-400 font-semibold">{row.invoiceNumber || `INV-${row.id}`}</span>
     },
     {
-      header: 'Company Account',
+      header: 'Trip Ref',
+      accessor: 'tripId',
+      render: (row) => <span className="font-mono text-slate-400">TRIP-{row.tripId}</span>
+    },
+    {
+      header: 'Company Client',
       accessor: 'companyName',
       render: (row) => <span className="font-semibold text-slate-300">{row.companyName}</span>
     },
     {
       header: 'Trip Revenue',
       accessor: 'tripAmount',
-      render: (row) => <span className="font-mono text-slate-200 font-semibold">₹{(row.tripAmount || 0).toLocaleString('en-IN')}</span>
+      render: (row) => <span className="font-mono text-slate-200 font-semibold">{formatCurrency(row.tripAmount)}</span>
     },
     {
       header: 'Operating Cost',
       accessor: 'totalExpenses',
-      render: (row) => <span className="font-mono text-rose-400 font-semibold">₹{(row.totalExpenses || 0).toLocaleString('en-IN')}</span>
+      render: (row) => <span className="font-mono text-rose-400 font-semibold">{formatCurrency(row.totalExpenses)}</span>
     },
     {
       header: 'Net Margin',
@@ -130,7 +135,7 @@ export const FinanceList = () => {
       render: (row) => (
         <div className="space-y-0.5">
           <span className={`font-mono font-semibold block ${row.netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-            ₹{(row.netProfit || 0).toLocaleString('en-IN')}
+            {formatCurrency(row.netProfit)}
           </span>
           <span className="text-[10px] text-slate-500 font-semibold block">Margin: {row.profitMargin || 0}%</span>
         </div>
@@ -141,7 +146,7 @@ export const FinanceList = () => {
       accessor: 'pendingAmount',
       render: (row) => (
         <span className={`font-mono text-xs font-semibold ${row.pendingAmount > 0 ? 'text-amber-400' : 'text-slate-500'}`}>
-          {row.pendingAmount > 0 ? `₹${row.pendingAmount.toLocaleString('en-IN')}` : 'Settled'}
+          {row.pendingAmount > 0 ? formatCurrency(row.pendingAmount) : 'Settled'}
         </span>
       )
     },
@@ -149,13 +154,13 @@ export const FinanceList = () => {
       header: 'Payment Status',
       accessor: 'status',
       render: (row) => {
-        const statusColors = {
-          Paid: 'bg-emerald-500/15 text-accent-emerald border border-emerald-500/20',
-          Partial: 'bg-amber-500/15 text-accent-amber border border-amber-500/20',
-          Pending: 'bg-rose-500/15 text-accent-rose border border-rose-500/20'
+        const colors = {
+          Paid: 'bg-emerald-500/15 text-accent-emerald border-emerald-500/20',
+          Partial: 'bg-amber-500/15 text-accent-amber border-amber-500/20',
+          Pending: 'bg-rose-500/15 text-accent-rose border-rose-500/20',
         };
         return (
-          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${statusColors[row.status]}`}>
+          <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${colors[row.status] || 'bg-slate-800 text-slate-400'}`}>
             {row.status}
           </span>
         );
@@ -163,30 +168,32 @@ export const FinanceList = () => {
     },
     {
       header: 'Actions',
-      accessor: 'actions',
-      sortable: false,
-      className: 'text-right',
+      accessor: 'id',
       render: (row) => (
-        <button
-          onClick={() => handleOpenEdit(row)}
-          className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-lg transition-colors cursor-pointer"
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handleEdit(row)}
+          className="flex items-center gap-1 hover:bg-slate-800"
         >
-          <Edit2 size={14} />
-        </button>
+          <Edit2 size={13} />
+          Edit Ledger
+        </Button>
       )
     }
   ];
 
   return (
-    <div className="space-y-6 select-none">
+    <div className="space-y-8 select-none">
       {/* Header section */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold font-display tracking-tight text-slate-100">
-            Accounts Ledger
+          <h1 className="text-2xl font-bold font-display text-slate-100 flex items-center gap-2.5">
+            <Coins className="text-accent-indigo" size={26} />
+            Finance & Billing Ledger
           </h1>
-          <p className="text-sm text-slate-400">
-            Audit trip expenses, invoice revenues, check profit margins, and manage company balances.
+          <p className="text-xs text-slate-500 mt-1 font-medium">
+            Monitor freight revenue, operational expense breakdowns, client receivables, and profit margins.
           </p>
         </div>
       </div>
@@ -196,28 +203,28 @@ export const FinanceList = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard
             title="Total Billings"
-            value={`₹${ledgerStats.totalRev.toLocaleString('en-IN')}`}
+            value={formatCurrency(ledgerStats.totalRev)}
             subtitle="Combined gross revenue"
             icon={Coins}
             color="indigo"
           />
           <StatCard
             title="Operating Costs"
-            value={`₹${ledgerStats.totalExp.toLocaleString('en-IN')}`}
+            value={formatCurrency(ledgerStats.totalExp)}
             subtitle="Fuel, tolls, and allowance expenses"
             icon={ArrowDownRight}
             color="rose"
           />
           <StatCard
             title="Outstanding Receivables"
-            value={`₹${ledgerStats.outstanding.toLocaleString('en-IN')}`}
+            value={formatCurrency(ledgerStats.outstanding)}
             subtitle="Unsettled customer balances"
             icon={Wallet}
             color="amber"
           />
           <StatCard
             title="Avg Profit Margin"
-            value={`${ledgerStats.avgMargin}%`}
+            value={`${Number(ledgerStats.avgMargin || 0).toFixed(1)}%`}
             subtitle="Overall company operational margins"
             icon={Percent}
             color="emerald"

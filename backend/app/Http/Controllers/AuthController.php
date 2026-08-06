@@ -23,6 +23,8 @@ class AuthController extends Controller
         }
 
         $user = Auth::user();
+
+        event(new \App\Events\Domain\UserLoggedInEvent($user, $request->ip()));
         
         return response()->json([
             'success' => true,

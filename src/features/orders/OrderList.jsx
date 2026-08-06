@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { 
   useOrders, 
   useCompanies, 
@@ -13,13 +14,14 @@ import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Select from '../../components/common/Select';
 import Modal from '../../components/common/Modal';
-import { Plus, Send, AlertCircle } from 'lucide-react';
+import { Plus, Send, AlertCircle, ExternalLink } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { GoogleTripRoutePicker, RouteSummary } from '../../components/common/GoogleRouteMap';
 import { GOOGLE_MAPS_API_KEY } from '../../components/common/googleMapsConfig';
 
 export const OrderList = () => {
   const { currentRole } = useSelector((state) => state.auth);
+  const navigate = useNavigate();
 
   const { data: orders, isLoading: ordersLoading } = useOrders();
   const { data: companies } = useCompanies();
@@ -149,8 +151,19 @@ export const OrderList = () => {
   };
 
   const onSubmitAssign = (data) => {
-    const selectedVehicle = vehicles.find(v => v.id === data.vehicleId);
-    const selectedDriver = drivers.find(d => d.id === data.driverId);
+    // Guard: selectedOrder must be set before submission
+    if (!selectedOrder) return;
+
+    // Select uses string values; vehicle/driver ids may be numbers — use == for type-coerced match
+    // eslint-disable-next-line eqeqeq
+    const selectedVehicle = (vehicles || []).find(v => v.id == data.vehicleId);
+    // eslint-disable-next-line eqeqeq
+    const selectedDriver = (drivers || []).find(d => d.id == data.driverId);
+
+    if (!selectedVehicle || !selectedDriver) {
+      console.error('Vehicle or driver not found for selected ids', data.vehicleId, data.driverId);
+      return;
+    }
 
     const tripPayload = {
       orderId: selectedOrder.id,
@@ -277,6 +290,16 @@ export const OrderList = () => {
             >
               <Send size={12} />
               <span>Assign & Dispatch</span>
+            </Button>
+          ) : ['Assigned', 'Running'].includes(row.status) ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/trips')}
+              className="flex items-center gap-1 text-xs"
+            >
+              <ExternalLink size={12} />
+              <span>View Trip</span>
             </Button>
           ) : (
             <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider pr-2">

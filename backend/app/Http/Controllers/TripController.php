@@ -22,7 +22,7 @@ class TripController extends Controller
 
     public function index(Request $request)
     {
-        $query = Trip::query()->with(['company', 'driver', 'vehicle', 'fuelEntries' => fn ($q) => $q->where('status', 'Approved')]);
+        $query = Trip::query()->with(['company', 'driver', 'vehicle', 'fuelEntries']);
         if ($request->has('status')) {
             $query->where('status', $request->status);
         }
@@ -60,6 +60,8 @@ class TripController extends Controller
         $trip = $this->estimator->estimateAndPersist($trip);
         $this->finance->createLedgerForTrip($trip);
 
+        event(new \App\Events\Domain\TripCreatedEvent($trip, auth()->id()));
+
         return response()->json([
             'success' => true,
             'data' => new TripResource($trip)
@@ -68,7 +70,7 @@ class TripController extends Controller
 
     public function show(Trip $trip)
     {
-        $trip->load(['company', 'driver', 'vehicle', 'order', 'documents', 'financeLedger']);
+        $trip->load(['company', 'driver', 'vehicle', 'order', 'documents', 'financeLedger', 'fuelEntries']);
         return response()->json([
             'success' => true,
             'data' => new TripResource($trip)
@@ -77,7 +79,76 @@ class TripController extends Controller
 
     public function update(UpdateTripRequest $request, Trip $trip)
     {
-        $trip->update($request->validated());
+        $oldStatus = $trip->status;
+        $data = $request->validated();
+
+        // If status changes to Running or start_odometer is provided, set start_date
+        if ((isset($data['status']) && $data['status'] === 'Running' && $oldStatus === 'Assigned') 
+            || (isset($data['start_odometer']) && !$trip->start_date)) {
+            $data['start_date'] = now();
+        }
+
+        // If status changes to Completed, set end_date
+        if (isset($data['status']) && $data['status'] === 'Completed' && $oldStatus !== 'Completed') {
+            $data['end_date'] = now();
+            $data['delivery_date'] = now()->format('Y-m-d');
+        }
+
+        $pickupPhoto = $data['pickup_photo'] ?? null;
+        $deliveryPhoto = $data['delivery_photo'] ?? null;
+        $podPhoto = $data['pod_photo'] ?? null;
+
+        unset($data['pickup_photo'], $data['delivery_photo'], $data['pod_photo']);
+
+        $trip->update($data);
+
+        if ($pickupPhoto) {
+            $trip->documents()->updateOrCreate(
+                ['document_type' => 'Pickup Inspection'],
+                ['document_url' => $pickupPhoto]
+            );
+        }
+
+        if ($deliveryPhoto) {
+            $trip->documents()->updateOrCreate(
+                ['document_type' => 'Delivery Cargo'],
+                ['document_url' => $deliveryPhoto]
+            );
+        }
+
+        if ($podPhoto) {
+            $trip->documents()->updateOrCreate(
+                ['document_type' => 'Proof of Delivery (POD)'],
+                ['document_url' => $podPhoto]
+            );
+        }
+
+        // Check if status changed
+        if (isset($data['status']) && $data['status'] !== $oldStatus) {
+            $newStatus = $data['status'];
+
+            // Sync status to the linked order if it exists
+            if ($trip->order) {
+                $trip->order->update(['status' => $newStatus]);
+            }
+
+            // Sync statuses to vehicle & driver
+            if ($newStatus === 'Running') {
+                if ($trip->vehicle) $trip->vehicle->update(['status' => 'Running']);
+                if ($trip->driver) $trip->driver->update(['status' => 'On Trip']);
+            } elseif ($newStatus === 'Completed') {
+                if ($trip->vehicle) $trip->vehicle->update(['status' => 'Available']);
+                if ($trip->driver) $trip->driver->update(['status' => 'Available']);
+
+                // Recompute fuel actuals & mileage once the trip is completed
+                $this->estimator->refreshTripActuals($trip);
+                $this->finance->syncTripDieselExpense($trip);
+            } elseif ($newStatus === 'Cancelled') {
+                if ($trip->vehicle) $trip->vehicle->update(['status' => 'Available']);
+                if ($trip->driver) $trip->driver->update(['status' => 'Available']);
+            }
+        }
+
         return response()->json(['success' => true, 'data' => new TripResource($trip)]);
     }
 
@@ -94,7 +165,11 @@ class TripController extends Controller
         $trip->update([
             'start_odometer' => $request->start_odometer,
             'remarks' => $request->remarks,
+            'status' => 'Running',
         ]);
+
+        event(new \App\Events\Domain\TripStartedEvent($trip, auth()->id()));
+
         return response()->json(['success' => true]);
     }
 
@@ -118,13 +193,15 @@ class TripController extends Controller
         if ($trip->order) {
             $trip->order->update(['status' => 'Completed']);
         }
-        $trip->vehicle->update(['status' => 'Available']);
-        $trip->driver->update(['status' => 'Available']);
+        if ($trip->vehicle) $trip->vehicle->update(['status' => 'Available']);
+        if ($trip->driver) $trip->driver->update(['status' => 'Available']);
 
         // Recompute fuel actuals & mileage once the trip is closed
         $this->estimator->refreshTripActuals($trip);
         $this->finance->syncTripDieselExpense($trip);
         
+        event(new \App\Events\Domain\TripCompletedEvent($trip, auth()->id()));
+
         return response()->json(['success' => true]);
     }
     

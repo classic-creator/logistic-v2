@@ -27,6 +27,9 @@ return new class extends Migration
             $table->decimal("payment_received", 10, 2)->nullable();
             $table->decimal("total_expenses", 10, 2)->nullable();
             $table->decimal("net_profit", 10, 2)->nullable();
+            $table->decimal("pending_amount", 10, 2)->nullable();
+            $table->decimal("profit_margin", 8, 4)->nullable();
+            $table->string("status", 20)->default("Pending");
             $table->text("remarks")->nullable();
             $table->timestamp("recorded_at")->nullable();
             $table->timestamps();
