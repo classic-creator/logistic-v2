@@ -160,7 +160,16 @@ const RouteDirections = ({ start, destination, onRoute, currentLocation }) => {
       )}
       {currentLocation && (
         <AdvancedMarker position={currentLocation}>
-          <Pin background="#8b5cf6" borderColor="#ffffff" glyphColor="#ffffff" scale={1.15} />
+          <div className="flex items-center justify-center w-8 h-8 bg-violet-500 rounded-full border-2 border-white shadow-lg animate-pulse relative">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+              <path d="M10 17h4V5H2v12h3" />
+              <path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5" />
+              <path d="M14 17h1" />
+              <circle cx="7.5" cy="17.5" r="2.5" />
+              <circle cx="17.5" cy="17.5" r="2.5" />
+            </svg>
+            <div className="absolute -bottom-1 -z-10 w-4 h-4 bg-violet-500 rotate-45" />
+          </div>
         </AdvancedMarker>
       )}
     </>

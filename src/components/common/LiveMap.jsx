@@ -103,7 +103,14 @@ const SimulatedFleetMap = ({ trips }) => {
             onMouseLeave={() => setHovered(null)}
           >
             <circle r="14" fill="#8b5cf6" fillOpacity="0.18" className="animate-pulse" />
-            <circle r="6" fill="#8b5cf6" stroke="#ffffff" strokeWidth="1.5" />
+            <circle r="10" fill="#8b5cf6" stroke="#ffffff" strokeWidth="1.5" />
+            <svg x="-6" y="-6" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10 17h4V5H2v12h3" />
+              <path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5" />
+              <path d="M14 17h1" />
+              <circle cx="7.5" cy="17.5" r="2.5" />
+              <circle cx="17.5" cy="17.5" r="2.5" />
+            </svg>
           </g>
         ))}
         <defs>
@@ -191,7 +198,9 @@ export const LiveMap = ({ trips = [] }) => {
               position={marker.position}
               onClick={() => setActiveMarker(marker)}
             >
-              <Pin background={'#6366f1'} borderColor={'#ffffff'} glyphColor={'#ffffff'} />
+              <div className="flex items-center justify-center w-7 h-7 bg-violet-600 rounded-full border-2 border-white shadow-lg animate-pulse">
+                <Truck size={14} className="text-white" />
+              </div>
             </AdvancedMarker>
           ))}
 

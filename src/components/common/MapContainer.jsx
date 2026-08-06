@@ -147,13 +147,14 @@ const SimulatedMap = ({
         {/* Live Truck Marker */}
         <g transform={`translate(${truckPos.x}, ${truckPos.y})`}>
           <circle r="22" fill="#8b5cf6" fillOpacity="0.15" className="animate-pulse" />
-          <circle r="10" fill="#8b5cf6" stroke="#ffffff" strokeWidth="2" />
-          {/* Compass Pointer direction */}
-          <path
-            d="M-5 -2 L0 -10 L5 -2 Z"
-            fill="#ffffff"
-            transform="rotate(65)"
-          />
+          <circle r="12" fill="#8b5cf6" stroke="#ffffff" strokeWidth="2" />
+          <svg x="-9" y="-9" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M10 17h4V5H2v12h3" />
+            <path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5" />
+            <path d="M14 17h1" />
+            <circle cx="7.5" cy="17.5" r="2.5" />
+            <circle cx="17.5" cy="17.5" r="2.5" />
+          </svg>
         </g>
 
         {/* Secondary Simulated Cities/Nodes */}
