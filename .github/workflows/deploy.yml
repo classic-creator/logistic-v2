@@ -72,11 +72,20 @@ jobs:
           npm run build
 
       - name: Setup SSH Key
+        env:
+          SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          SSH_HOST: ${{ secrets.HOSTINGER_SSH_HOST }}
+          SSH_USER: ${{ secrets.HOSTINGER_SSH_USER }}
         run: |
+          if [ -z "$SSH_KEY" ] || [ -z "$SSH_HOST" ] || [ -z "$SSH_USER" ]; then
+            echo "❌ Error: One or more required SSH secrets are missing (HOSTINGER_SSH_HOST, HOSTINGER_SSH_USER, HOSTINGER_SSH_KEY)."
+            echo "Please check your GitHub Repository Settings > Secrets and variables > Actions."
+            exit 1
+          fi
           mkdir -p ~/.ssh
-          echo "${{ secrets.HOSTINGER_SSH_KEY }}" > ~/.ssh/id_rsa
+          echo "$SSH_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -p ${{ secrets.HOSTINGER_SSH_PORT || 65002 }} -H "${{ secrets.HOSTINGER_SSH_HOST }}" >> ~/.ssh/known_hosts
+          ssh-keyscan -p ${{ secrets.HOSTINGER_SSH_PORT || 65002 }} -H "$SSH_HOST" >> ~/.ssh/known_hosts
 
       # Create deployment tarball excluding unnecessary build items
       - name: Package Release
