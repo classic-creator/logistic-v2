@@ -91,15 +91,15 @@ jobs:
       - name: Package Release
         run: |
           tar -czf release.tar.gz \
-            backend/ \
-            dist/ \
-            ml_service/ \
-            scripts/deploy.sh \
             --exclude='backend/node_modules' \
             --exclude='backend/vendor' \
             --exclude='backend/storage/logs/*.log' \
             --exclude='backend/.env' \
-            --exclude='node_modules'
+            --exclude='node_modules' \
+            backend/ \
+            dist/ \
+            ml_service/ \
+            scripts/deploy.sh
 
       # Upload deployment package to Hostinger via SCP
       - name: Upload Package
