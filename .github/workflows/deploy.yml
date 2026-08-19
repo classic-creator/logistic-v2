@@ -49,7 +49,7 @@ jobs:
             --exclude='/storage/logs' \
             --exclude='/bootstrap/cache' \
             --exclude='node_modules' \
-            -e "ssh -p ${{ secrets.HOSTINGER_SSH_PORT }}" \
+            -e "ssh -p 65002" \
             backend/ ${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }}:/home/u233320315/domains/maroon-rabbit-572992.hostingersite.com/backend/
 
       - name: Deploy Frontend via Rsync
@@ -58,12 +58,12 @@ jobs:
             --exclude='.git' \
             --exclude='.htaccess' \
             --exclude='/api' \
-            -e "ssh -p ${{ secrets.HOSTINGER_SSH_PORT }}" \
+            -e "ssh -p 65002" \
             dist/ ${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }}:/home/u233320315/domains/maroon-rabbit-572992.hostingersite.com/public_html/
 
       - name: Run Laravel Setup Commands
         run: |
-          ssh -p ${{ secrets.HOSTINGER_SSH_PORT }} ${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }} << 'EOF'
+          ssh -p 65002 ${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }} << 'EOF'
             mkdir -p /home/u233320315/domains/maroon-rabbit-572992.hostingersite.com/backend
             cd /home/u233320315/domains/maroon-rabbit-572992.hostingersite.com/backend
             
