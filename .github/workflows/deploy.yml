@@ -67,6 +67,13 @@ jobs:
             mkdir -p /home/u233320315/domains/maroon-rabbit-572992.hostingersite.com/backend
             cd /home/u233320315/domains/maroon-rabbit-572992.hostingersite.com/backend
             
+            # Ensure cache and storage directories exist
+            mkdir -p bootstrap/cache
+            mkdir -p storage/logs
+            mkdir -p storage/framework/cache/data
+            mkdir -p storage/framework/sessions
+            mkdir -p storage/framework/views
+            
             # Create .env if missing
             if [ ! -f ".env" ]; then
                 cp .env.example .env
@@ -79,23 +86,22 @@ jobs:
             php artisan route:clear
             php artisan cache:clear
             php artisan optimize
-
+            php artisan storage:link
+            
             # Create Symlink for API
             cd /home/u233320315/domains/maroon-rabbit-572992.hostingersite.com/public_html
             if [ -L "api" ]; then rm "api"; elif [ -d "api" ]; then rm -rf "api"; fi
             ln -s ../backend/public api
             
             # Setup React Router .htaccess
-            cat << 'HTACCESS' > .htaccess
-            <IfModule mod_rewrite.c>
-              RewriteEngine On
-              RewriteBase /
-              RewriteRule ^index\.html$ - [L]
-              RewriteCond %{REQUEST_URI} ^/api [NC]
-              RewriteRule .* - [L]
-              RewriteCond %{REQUEST_FILENAME} !-f
-              RewriteCond %{REQUEST_FILENAME} !-d
-              RewriteRule . /index.html [L]
-            </IfModule>
-            HTACCESS
+            echo "<IfModule mod_rewrite.c>" > .htaccess
+            echo "  RewriteEngine On" >> .htaccess
+            echo "  RewriteBase /" >> .htaccess
+            echo "  RewriteRule ^index\.html$ - [L]" >> .htaccess
+            echo "  RewriteCond %{REQUEST_URI} ^/api [NC]" >> .htaccess
+            echo "  RewriteRule .* - [L]" >> .htaccess
+            echo "  RewriteCond %{REQUEST_FILENAME} !-f" >> .htaccess
+            echo "  RewriteCond %{REQUEST_FILENAME} !-d" >> .htaccess
+            echo "  RewriteRule . /index.html [L]" >> .htaccess
+            echo "</IfModule>" >> .htaccess
           EOF
