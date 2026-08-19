@@ -20,7 +20,7 @@ const transformKeys = (obj, transformer) => {
 };
 
 export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:8000'),
+  baseURL: import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '/' : 'http://localhost:8000'),
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
