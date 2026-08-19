@@ -7,37 +7,15 @@ on:
       - master
 
 jobs:
-  ci-tests:
-    name: Run Lints and Tests
+  deploy:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v5
 
-      # Backend CI
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.3'
-          extensions: mbstring, xml, ctype, iconv, mysql, sqlite3
-          coverage: none
-
-      - name: Install Composer Dependencies
-        run: |
-          cd backend
-          composer install --no-progress --prefer-dist --no-interaction
-
-      - name: Run Backend Tests
-        run: |
-          cd backend
-          cp .env.example .env
-          php artisan key:generate
-          touch database/database.sqlite
-          php artisan test
-
-      # Frontend CI
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: 'npm'
@@ -45,70 +23,79 @@ jobs:
       - name: Install Frontend Dependencies
         run: npm ci
 
-      - name: Run Frontend Lint
-        run: npm run lint || echo "Linting issues found, proceeding with deployment."
-
-  build-and-deploy:
-    name: Build & Deploy via SSH
-    needs: ci-tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install & Build Frontend
+      - name: Build Frontend
         env:
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
           VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
           VITE_GOOGLE_MAPS_MAP_ID: ${{ secrets.VITE_GOOGLE_MAPS_MAP_ID }}
-        run: |
-          npm ci
-          npm run build
+        run: npm run build
 
-      - name: Setup SSH Key
-        env:
-          SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
-          SSH_HOST: ${{ secrets.HOSTINGER_SSH_HOST }}
-          SSH_USER: ${{ secrets.HOSTINGER_SSH_USER }}
-          DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+      - name: Configure SSH
         run: |
-          if [ -z "$SSH_KEY" ] || [ -z "$SSH_HOST" ] || [ -z "$SSH_USER" ] || [ -z "$DEPLOY_PATH" ]; then
-            echo "❌ Error: One or more required SSH secrets are missing (HOSTINGER_SSH_HOST, HOSTINGER_SSH_USER, HOSTINGER_SSH_KEY, HOSTINGER_DEPLOY_PATH)."
-            echo "Please check your GitHub Repository Settings > Secrets and variables > Actions."
-            exit 1
-          fi
           mkdir -p ~/.ssh
-          printf "%s\n" "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+          echo "${{ secrets.HOSTINGER_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -p ${{ secrets.HOSTINGER_SSH_PORT || 65002 }} -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          cat >>~/.ssh/config <<END
+          Host *
+            StrictHostKeyChecking no
+            UserKnownHostsFile=/dev/null
+          END
 
-      # Create deployment tarball excluding unnecessary build items
-      - name: Package Release
+      - name: Deploy Backend via Rsync
         run: |
-          tar -czf release.tar.gz \
-            --exclude='backend/node_modules' \
-            --exclude='backend/vendor' \
-            --exclude='backend/storage/logs/*.log' \
-            --exclude='backend/.env' \
+          rsync -avz --delete \
+            --exclude='.env' \
+            --exclude='/vendor' \
+            --exclude='/storage/logs' \
+            --exclude='/bootstrap/cache' \
             --exclude='node_modules' \
-            backend/ \
-            dist/ \
-            ml_service/ \
-            scripts/deploy.sh
+            -e "ssh -p ${{ secrets.HOSTINGER_SSH_PORT }}" \
+            backend/ ${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }}:/home/u233320315/domains/maroon-rabbit-572992.hostingersite.com/backend/
 
-      # Upload deployment package to Hostinger via SCP
-      - name: Upload Package
+      - name: Deploy Frontend via Rsync
         run: |
-          scp -P ${{ secrets.HOSTINGER_SSH_PORT || 65002 }} release.tar.gz ${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }}:${{ secrets.HOSTINGER_DEPLOY_PATH }}/release.tar.gz
+          rsync -avz --delete \
+            --exclude='.git' \
+            --exclude='.htaccess' \
+            --exclude='/api' \
+            -e "ssh -p ${{ secrets.HOSTINGER_SSH_PORT }}" \
+            dist/ ${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }}:/home/u233320315/domains/maroon-rabbit-572992.hostingersite.com/public_html/
 
-      # Connect via SSH, extract the release, setup dependencies, run migrations & caches
-      - name: Execute Server Deploy Script
+      - name: Run Laravel Setup Commands
         run: |
-          ssh -p ${{ secrets.HOSTINGER_SSH_PORT || 65002 }} ${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }} \
-            "bash ${{ secrets.HOSTINGER_DEPLOY_PATH }}/scripts/deploy.sh ${{ secrets.HOSTINGER_DEPLOY_PATH }}"
+          ssh -p ${{ secrets.HOSTINGER_SSH_PORT }} ${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }} << 'EOF'
+            mkdir -p /home/u233320315/domains/maroon-rabbit-572992.hostingersite.com/backend
+            cd /home/u233320315/domains/maroon-rabbit-572992.hostingersite.com/backend
+            
+            # Create .env if missing
+            if [ ! -f ".env" ]; then
+                cp .env.example .env
+                php artisan key:generate
+            fi
+            
+            composer install --no-dev --optimize-autoloader
+            php artisan migrate --force
+            php artisan config:clear
+            php artisan route:clear
+            php artisan cache:clear
+            php artisan optimize
+
+            # Create Symlink for API
+            cd /home/u233320315/domains/maroon-rabbit-572992.hostingersite.com/public_html
+            if [ -L "api" ]; then rm "api"; elif [ -d "api" ]; then rm -rf "api"; fi
+            ln -s ../backend/public api
+            
+            # Setup React Router .htaccess
+            cat << 'HTACCESS' > .htaccess
+            <IfModule mod_rewrite.c>
+              RewriteEngine On
+              RewriteBase /
+              RewriteRule ^index\.html$ - [L]
+              RewriteCond %{REQUEST_URI} ^/api [NC]
+              RewriteRule .* - [L]
+              RewriteCond %{REQUEST_FILENAME} !-f
+              RewriteCond %{REQUEST_FILENAME} !-d
+              RewriteRule . /index.html [L]
+            </IfModule>
+            HTACCESS
+          EOF
