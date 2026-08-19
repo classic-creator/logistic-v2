@@ -76,14 +76,15 @@ jobs:
           SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
           SSH_HOST: ${{ secrets.HOSTINGER_SSH_HOST }}
           SSH_USER: ${{ secrets.HOSTINGER_SSH_USER }}
+          DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
         run: |
-          if [ -z "$SSH_KEY" ] || [ -z "$SSH_HOST" ] || [ -z "$SSH_USER" ]; then
-            echo "❌ Error: One or more required SSH secrets are missing (HOSTINGER_SSH_HOST, HOSTINGER_SSH_USER, HOSTINGER_SSH_KEY)."
+          if [ -z "$SSH_KEY" ] || [ -z "$SSH_HOST" ] || [ -z "$SSH_USER" ] || [ -z "$DEPLOY_PATH" ]; then
+            echo "❌ Error: One or more required SSH secrets are missing (HOSTINGER_SSH_HOST, HOSTINGER_SSH_USER, HOSTINGER_SSH_KEY, HOSTINGER_DEPLOY_PATH)."
             echo "Please check your GitHub Repository Settings > Secrets and variables > Actions."
             exit 1
           fi
           mkdir -p ~/.ssh
-          echo "$SSH_KEY" > ~/.ssh/id_rsa
+          printf "%s\n" "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -p ${{ secrets.HOSTINGER_SSH_PORT || 65002 }} -H "$SSH_HOST" >> ~/.ssh/known_hosts
 
