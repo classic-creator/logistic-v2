@@ -4,7 +4,8 @@ import { useFuelEstimatePreview } from '../../services/fuelServices';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Select from '../../components/common/Select';
-import { Info, Send, Navigation, Truck, Fuel } from 'lucide-react';
+import DocumentReaderModal from '../../components/common/DocumentReaderModal';
+import { Info, Send, Navigation, Truck, Fuel, FileText, CheckCircle2, Sparkles } from 'lucide-react';
 import { CITIES, MATERIALS, ROUTE_DISTANCES } from './routeConstants';
 import {
   GoogleTripRoutePicker,
@@ -21,6 +22,9 @@ export const CreateDispatchForm = ({ lockedVehicle, lockedDriver, onDispatched }
   const { data: vehicles } = useVehicles();
   const createTripMutation = useCreateTrip();
   const estimatePreview = useFuelEstimatePreview();
+
+  const [docReaderOpen, setDocReaderOpen] = useState(false);
+  const [attachedDoc, setAttachedDoc] = useState(null);
 
   const [companyId, setCompanyId] = useState('');
   const [pickupLocation, setPickupLocation] = useState('');
@@ -189,6 +193,8 @@ export const CreateDispatchForm = ({ lockedVehicle, lockedDriver, onDispatched }
       distance: dist,
       estimatedDuration: dur,
       deliveryDate,
+      document_url: attachedDoc?.documentUrl || null,
+      document_path: attachedDoc?.documentPath || null,
       remarks: notes || 'Trip created and dispatched from dispatch desk.',
       status: 'Assigned'
     }, {
@@ -204,14 +210,64 @@ export const CreateDispatchForm = ({ lockedVehicle, lockedDriver, onDispatched }
         setDistanceInput('');
         setDurationInput('');
         setNotes('');
+        setAttachedDoc(null);
         setError('');
         if (onDispatched) onDispatched(created);
       }
     });
   };
 
+  const handleDocumentConfirmed = (data) => {
+    if (data.companyId) setCompanyId(String(data.companyId));
+    if (data.pickupLocation) setPickupLocation(data.pickupLocation);
+    if (data.destination) setDestination(data.destination);
+    if (data.weight) setWeight(String(data.weight));
+    if (data.material) setMaterial(data.material);
+    if (data.distance) setDistanceInput(String(data.distance));
+    if (data.orderNumber) {
+      setNotes(`Order #${data.orderNumber} / Ref #${data.referenceNumber || ''} - Auto-filled via Document Reader`);
+    }
+    setAttachedDoc({
+      documentUrl: data.documentUrl,
+      documentPath: data.documentPath,
+    });
+  };
+
   return (
     <div className="space-y-4">
+      {/* Smart Document Reader Banner Button */}
+      <button
+        type="button"
+        onClick={() => setDocReaderOpen(true)}
+        className="w-full p-3.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-accent-indigo transition-all flex items-center justify-between cursor-pointer group"
+      >
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 rounded-lg bg-indigo-500/20 text-accent-indigo group-hover:scale-105 transition-transform">
+            <Sparkles size={18} />
+          </div>
+          <div className="text-left">
+            <span className="text-xs font-bold block text-slate-100">Upload Transport Document</span>
+            <span className="text-[10px] text-indigo-300/80">Auto-fill customer, route, weight & cargo from LR/Invoice</span>
+          </div>
+        </div>
+        {attachedDoc ? (
+          <span className="flex items-center gap-1 text-[10px] font-bold text-accent-emerald bg-emerald-500/20 px-2.5 py-1 rounded-full">
+            <CheckCircle2 size={12} /> Document Attached
+          </span>
+        ) : (
+          <span className="text-[10px] font-bold uppercase tracking-wider text-accent-indigo">Scan & Auto-Fill →</span>
+        )}
+      </button>
+
+      <DocumentReaderModal
+        isOpen={docReaderOpen}
+        onClose={() => setDocReaderOpen(false)}
+        companies={companies?.data || []}
+        lockedVehicle={lockedVehicle}
+        lockedDriver={lockedDriver}
+        onDocumentConfirmed={handleDocumentConfirmed}
+      />
+
       {lockedVehicle && (
         <div className="flex items-center justify-between p-3 rounded-lg bg-slate-900 border border-slate-800 text-xs">
           <div className="flex items-center gap-2">

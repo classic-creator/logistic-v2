@@ -1,5 +1,6 @@
 <?php
 namespace App\Http\Controllers;
+
 use App\Models\Order;
 use App\Models\Trip;
 use App\Models\Vehicle;
@@ -15,18 +16,59 @@ class OrderController extends Controller
     public function index(Request $request)
     {
         $query = Order::query()->with(['company', 'trip']);
-        if ($request->has('status')) {
-            $query->where('status', $request->status);
+
+        // 1. Tenant Company Scope (Security & Isolation)
+        $user = $request->user();
+        if ($user && !empty($user->company_id)) {
+            $query->where('company_id', $user->company_id);
+        } elseif ($request->filled('company_id')) {
+            $query->where('company_id', $request->input('company_id'));
         }
-        $perPage = $request->get('per_page', 15);
+
+        // 2. Status & Date Range Filtering
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+
+        if ($request->filled('date_from') && $request->filled('date_to')) {
+            $query->whereBetween('created_at', [$request->input('date_from'), $request->input('date_to')]);
+        }
+
+        // 3. Server-side Search
+        if ($request->filled('search')) {
+            $search = trim($request->input('search'));
+            $query->where(function ($q) use ($search) {
+                $q->where('code', 'like', "%{$search}%")
+                  ->orWhere('id', 'like', "%{$search}%")
+                  ->orWhere('pickup_location', 'like', "%{$search}%")
+                  ->orWhere('destination', 'like', "%{$search}%")
+                  ->orWhere('material', 'like', "%{$search}%");
+            });
+        }
+
+        // 4. Server-side Sorting
+        $sortKey = $request->input('sort', 'created_at');
+        $sortDir = strtolower($request->input('sort_direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+        $allowedSorts = ['id', 'status', 'created_at', 'pickup_date', 'weight'];
+        if (in_array($sortKey, $allowedSorts)) {
+            $query->orderBy($sortKey, $sortDir);
+        } else {
+            $query->orderBy('created_at', 'desc');
+        }
+
+        // 5. Server-side Capped Pagination (Max 100)
+        $perPage = min(100, max(1, (int) $request->input('per_page', 25)));
         $data = $query->paginate($perPage);
+
         return response()->json([
             'success' => true,
-            'data' => OrderResource::collection($data),
-            'meta' => [
+            'message' => 'Orders fetched successfully',
+            'data'    => OrderResource::collection($data),
+            'meta'    => [
                 'current_page' => $data->currentPage(),
-                'last_page' => $data->lastPage(),
-                'total' => $data->total(),
+                'last_page'    => $data->lastPage(),
+                'per_page'     => $data->perPage(),
+                'total'        => $data->total(),
             ]
         ]);
     }
@@ -42,8 +84,8 @@ class OrderController extends Controller
         $order = Order::create($data);
         return response()->json([
             'success' => true,
-            'message' => 'Created successfully',
-            'data' => new OrderResource($order)
+            'message' => 'Order created successfully',
+            'data'    => new OrderResource($order)
         ], 201);
     }
 
@@ -52,7 +94,8 @@ class OrderController extends Controller
         $order->load('company', 'trip');
         return response()->json([
             'success' => true,
-            'data' => new OrderResource($order)
+            'message' => 'Order details fetched successfully',
+            'data'    => new OrderResource($order)
         ]);
     }
 
@@ -61,15 +104,18 @@ class OrderController extends Controller
         $order->update($request->validated());
         return response()->json([
             'success' => true,
-            'message' => 'Updated successfully',
-            'data' => new OrderResource($order)
+            'message' => 'Order updated successfully',
+            'data'    => new OrderResource($order)
         ]);
     }
 
     public function destroy(Order $order)
     {
         $order->delete();
-        return response()->json(['success' => true]);
+        return response()->json([
+            'success' => true,
+            'message' => 'Order deleted successfully'
+        ]);
     }
 
     public function assignDispatch(Request $request, Order $order)
@@ -118,7 +164,7 @@ class OrderController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Trip assigned successfully',
-            'data' => new TripResource($trip)
+            'data'    => new TripResource($trip)
         ]);
     }
 }

@@ -1,14 +1,21 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from './api';
 
+// Configurable staleTime for React Query caching (30s)
+const STALE_TIME = 30000;
+
 // --- COMPANIES SERVICE ---
 export const useCompanies = (params = {}) => {
   return useQuery({
     queryKey: ['companies', params],
     queryFn: async () => {
       const response = await apiClient.get('/api/v1/companies', { params });
-      return response.data; // expects { data: [], meta: {} }
-    }
+      return {
+        data: response.data?.data || [],
+        meta: response.data?.meta || {},
+      };
+    },
+    staleTime: STALE_TIME,
   });
 };
 
@@ -17,9 +24,10 @@ export const useCompany = (id) => {
     queryKey: ['company', id],
     queryFn: async () => {
       const response = await apiClient.get(`/api/v1/companies/${id}`);
-      return response.data;
+      return response.data?.data || response.data;
     },
-    enabled: !!id
+    enabled: !!id,
+    staleTime: STALE_TIME,
   });
 };
 
@@ -64,13 +72,18 @@ export const useDeleteCompany = () => {
 };
 
 // --- VEHICLES SERVICE ---
-export const useVehicles = (params = { per_page: 1000 }) => {
+export const useVehicles = (params = {}) => {
   return useQuery({
     queryKey: ['vehicles', params],
     queryFn: async () => {
       const response = await apiClient.get('/api/v1/vehicles', { params });
-      return response.data?.data || [];
-    }
+      const items = response.data?.data || [];
+      const meta = response.data?.meta || {};
+      // Return items array directly if accessed as array, attach .meta property
+      items.meta = meta;
+      return items;
+    },
+    staleTime: STALE_TIME,
   });
 };
 
@@ -81,7 +94,8 @@ export const useVehicle = (id) => {
       const response = await apiClient.get(`/api/v1/vehicles/${id}`);
       return response.data?.data || response.data;
     },
-    enabled: !!id
+    enabled: !!id,
+    staleTime: STALE_TIME,
   });
 };
 
@@ -126,13 +140,17 @@ export const useDeleteVehicle = () => {
 };
 
 // --- DRIVERS SERVICE ---
-export const useDrivers = (params = { per_page: 1000 }) => {
+export const useDrivers = (params = {}) => {
   return useQuery({
     queryKey: ['drivers', params],
     queryFn: async () => {
       const response = await apiClient.get('/api/v1/drivers', { params });
-      return response.data?.data || [];
-    }
+      const items = response.data?.data || [];
+      const meta = response.data?.meta || {};
+      items.meta = meta;
+      return items;
+    },
+    staleTime: STALE_TIME,
   });
 };
 
@@ -143,7 +161,8 @@ export const useDriver = (id) => {
       const response = await apiClient.get(`/api/v1/drivers/${id}`);
       return response.data?.data || response.data;
     },
-    enabled: !!id
+    enabled: !!id,
+    staleTime: STALE_TIME,
   });
 };
 
@@ -188,13 +207,17 @@ export const useDeleteDriver = () => {
 };
 
 // --- ORDERS SERVICE ---
-export const useOrders = (params = { per_page: 1000 }) => {
+export const useOrders = (params = {}) => {
   return useQuery({
     queryKey: ['orders', params],
     queryFn: async () => {
       const response = await apiClient.get('/api/v1/orders', { params });
-      return response.data?.data || [];
-    }
+      const items = response.data?.data || [];
+      const meta = response.data?.meta || {};
+      items.meta = meta;
+      return items;
+    },
+    staleTime: STALE_TIME,
   });
 };
 
@@ -205,7 +228,8 @@ export const useOrder = (id) => {
       const response = await apiClient.get(`/api/v1/orders/${id}`);
       return response.data?.data || response.data;
     },
-    enabled: !!id
+    enabled: !!id,
+    staleTime: STALE_TIME,
   });
 };
 
@@ -250,13 +274,17 @@ export const useDeleteOrder = () => {
 };
 
 // --- TRIPS SERVICE ---
-export const useTrips = (params = { per_page: 1000 }) => {
+export const useTrips = (params = {}) => {
   return useQuery({
     queryKey: ['trips', params],
     queryFn: async () => {
       const response = await apiClient.get('/api/v1/trips', { params });
-      return response.data?.data || [];
-    }
+      const items = response.data?.data || [];
+      const meta = response.data?.meta || {};
+      items.meta = meta;
+      return items;
+    },
+    staleTime: STALE_TIME,
   });
 };
 
@@ -267,7 +295,8 @@ export const useTrip = (id) => {
       const response = await apiClient.get(`/api/v1/trips/${id}`);
       return response.data?.data || response.data;
     },
-    enabled: !!id
+    enabled: !!id,
+    staleTime: STALE_TIME,
   });
 };
 
@@ -319,13 +348,17 @@ export const useDeleteTrip = () => {
 };
 
 // --- FINANCES SERVICE ---
-export const useFinances = (params = { per_page: 1000 }) => {
+export const useFinances = (params = {}) => {
   return useQuery({
     queryKey: ['finances', params],
     queryFn: async () => {
       const response = await apiClient.get('/api/v1/finances', { params });
-      return response.data?.data || [];
-    }
+      const items = response.data?.data || [];
+      const meta = response.data?.meta || {};
+      items.meta = meta;
+      return items;
+    },
+    staleTime: STALE_TIME,
   });
 };
 
@@ -336,7 +369,8 @@ export const useFinance = (id) => {
       const response = await apiClient.get(`/api/v1/finances/${id}`);
       return response.data?.data || response.data;
     },
-    enabled: !!id
+    enabled: !!id,
+    staleTime: STALE_TIME,
   });
 };
 

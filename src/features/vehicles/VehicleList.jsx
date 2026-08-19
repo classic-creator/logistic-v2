@@ -16,13 +16,31 @@ import { useForm } from 'react-hook-form';
 
 export const VehicleList = () => {
   const navigate = useNavigate();
-  const { data: vehicles, isLoading } = useVehicles();
+  const [queryParams, setQueryParams] = useState({
+    page: 1,
+    per_page: 25,
+    search: '',
+    sort: 'created_at',
+    sort_direction: 'desc'
+  });
+
+  const { data: vehicles, isLoading } = useVehicles(queryParams);
   const createMutation = useCreateVehicle();
   const updateMutation = useUpdateVehicle();
   const deleteMutation = useDeleteVehicle();
 
   const [isOpen, setIsOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState(null);
+
+  const handleFetchData = ({ page, pageSize, search, sortKey, sortDirection }) => {
+    setQueryParams({
+      page,
+      per_page: pageSize,
+      search: search || '',
+      sort: sortKey || 'created_at',
+      sort_direction: sortDirection || 'desc'
+    });
+  };
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm();
 
@@ -190,7 +208,11 @@ export const VehicleList = () => {
       ) : (
         <Table
           columns={columns}
-          data={vehicles}
+          data={vehicles || []}
+          serverPagination={true}
+          totalRows={vehicles?.meta?.total || (vehicles || []).length}
+          onFetchData={handleFetchData}
+          initialPageSize={25}
           searchPlaceholder="Search vehicles by number, type, status..."
           searchFields={['number', 'type', 'status', 'gpsId']}
           onRowClick={(row) => navigate(`/vehicles/${row.id}`)}

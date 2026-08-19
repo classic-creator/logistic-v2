@@ -11,8 +11,8 @@ use App\Models\FuelEntry;
  * Fuel Estimation Engine.
  *
  * Pipeline: Distance -> Vehicle Mileage -> Fuel Required -> Fuel Price -> Estimated Cost.
- * The engine trusts historical mileage over manufacturer specs and uses the fuel
- * price snapshot valid at the trip start time.
+ * Integrates historical EWMA mileage, load factor penalty, price resolution hierarchy,
+ * confidence scoring, and method metadata.
  */
 class FuelEstimationService
 {
@@ -37,15 +37,17 @@ class FuelEstimationService
     }
 
     /**
-     * Compute an estimate without persisting (used for live previews).
+     * Compute an estimate with rich confidence and method metadata.
      */
     public function estimate(Trip $trip, ?Vehicle $vehicle = null): array
     {
         $vehicle = $vehicle ?? $trip->vehicle;
         $distance = $this->resolveDistance($trip);
-        $mileage = $vehicle ? $this->resolveMileage($vehicle) : 4.0;
+        
+        $mileageData = $this->resolveMileageWithMetadata($vehicle, $trip);
+        $mileage = max(0.1, $mileageData['mileage']);
 
-        $fuelLiters = $distance > 0 ? round($distance / max($mileage, 0.1), 2) : 0;
+        $fuelLiters = $distance > 0 ? round($distance / $mileage, 2) : 0;
         $price = $this->resolvePrice($trip, $vehicle);
         $fuelCost = $fuelLiters > 0 ? round($fuelLiters * $price['price_per_liter'], 2) : 0;
 
@@ -57,6 +59,9 @@ class FuelEstimationService
             'fuel_price_id' => $price['id'],
             'fuel_cost' => $fuelCost,
             'travel_hours' => $this->resolveTravelHours($trip, $distance),
+            'confidence_percent' => $mileageData['confidence_percent'],
+            'data_points_used' => $mileageData['data_points_used'],
+            'method_used' => $mileageData['method_used'],
         ];
     }
 
@@ -74,21 +79,51 @@ class FuelEstimationService
         return $distance > 0 ? round($distance / 40, 2) : 0;
     }
 
-    /**
-     * Historical mileage primarily, falling back to loaded/empty/manufacturer.
-     */
     public function resolveMileage(Vehicle $vehicle): float
     {
-        $historical = $this->historicalAverageMileage($vehicle);
-        if ($historical > 0) {
-            return round($historical, 2);
-        }
-        return $vehicle->effectiveMileage();
+        $data = $this->resolveMileageWithMetadata($vehicle);
+        return $data['mileage'];
     }
 
-    /**
-     * Rolling average mileage derived from approved fuel entries across completed trips.
-     */
+    public function resolveMileageWithMetadata(?Vehicle $vehicle, ?Trip $trip = null): array
+    {
+        if (!$vehicle) {
+            return [
+                'mileage' => 4.0,
+                'confidence_percent' => 50,
+                'data_points_used' => 0,
+                'method_used' => 'Default Fleet Fallback',
+            ];
+        }
+
+        $learned = (float) ($vehicle->statistic?->current_learned_mileage ?? 0);
+        $confidence = (float) ($vehicle->statistic?->confidence_score ?? 0);
+
+        if ($learned > 0) {
+            $effectiveMileage = $learned;
+            $method = 'Historical Vehicle EWMA';
+            $confidencePct = (int) round($confidence * 100);
+        } else {
+            $effectiveMileage = $vehicle->effectiveMileage();
+            $method = 'Manufacturer Specs';
+            $confidencePct = 70;
+        }
+
+        // Apply cargo weight adjustment if trip has cargo_weight
+        if ($trip && $trip->cargo_weight > 0 && $vehicle->capacity > 0) {
+            $ratio = min(1.0, (float) $trip->cargo_weight / (float) $vehicle->capacity);
+            $effectiveMileage = $effectiveMileage * (1.0 - ($ratio * 0.15));
+            $method .= ' + Cargo Weight Penalty';
+        }
+
+        return [
+            'mileage' => round($effectiveMileage, 2),
+            'confidence_percent' => max(50, min(95, $confidencePct)),
+            'data_points_used' => $vehicle->statistic?->total_trips ?? 0,
+            'method_used' => $method,
+        ];
+    }
+
     public function historicalAverageMileage(Vehicle $vehicle): float
     {
         $entries = FuelEntry::query()
@@ -103,7 +138,6 @@ class FuelEstimationService
             return 0;
         }
 
-        // Sort by odometer and compute segment distances between consecutive fills.
         $sorted = $entries->sortBy('odometer')->values();
         $totalDistance = 0;
         $totalFuel = 0;
@@ -123,10 +157,6 @@ class FuelEstimationService
         return round($totalDistance / $totalFuel, 2);
     }
 
-    /**
-     * Resolve the applicable fuel price with fallback chain:
-     * city-level -> state-level -> global, honoring effective dates.
-     */
     public function resolvePrice(Trip $trip, ?Vehicle $vehicle = null): array
     {
         $fuelType = $vehicle?->fuel_type ?: 'Diesel';
@@ -142,7 +172,6 @@ class FuelEstimationService
             ];
         }
 
-        // Default market fallback price.
         $default = $fuelType === 'Petrol' ? 106.00 : ($fuelType === 'CNG' ? 76.00 : 92.00);
         return [
             'id' => null,
@@ -150,9 +179,6 @@ class FuelEstimationService
         ];
     }
 
-    /**
-     * Refresh the trip's derived actuals once fuel entries change.
-     */
     public function refreshTripActuals(Trip $trip): Trip
     {
         $trip->update([

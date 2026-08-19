@@ -1,5 +1,6 @@
 <?php
 namespace App\Http\Controllers;
+
 use App\Models\Trip;
 use App\Models\TripDocument;
 use App\Services\FuelEstimationService;
@@ -23,18 +24,69 @@ class TripController extends Controller
     public function index(Request $request)
     {
         $query = Trip::query()->with(['company', 'driver', 'vehicle', 'fuelEntries']);
-        if ($request->has('status')) {
-            $query->where('status', $request->status);
+
+        // 1. Tenant Company Scope (Security & Isolation)
+        $user = $request->user();
+        if ($user && !empty($user->company_id)) {
+            $query->where('company_id', $user->company_id);
+        } elseif ($request->filled('company_id')) {
+            $query->where('company_id', $request->input('company_id'));
         }
-        $perPage = $request->get('per_page', 15);
+
+        // 2. Driver & Vehicle Filters
+        if ($request->filled('driver_id')) {
+            $query->where('driver_id', $request->input('driver_id'));
+        }
+        if ($request->filled('vehicle_id')) {
+            $query->where('vehicle_id', $request->input('vehicle_id'));
+        }
+
+        // 3. Status & Date Range Filtering
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+
+        if ($request->filled('date_from') && $request->filled('date_to')) {
+            $query->whereBetween('created_at', [$request->input('date_from'), $request->input('date_to')]);
+        }
+
+        // 4. Multi-field Server-side Search
+        if ($request->filled('search')) {
+            $search = trim($request->input('search'));
+            $query->where(function ($q) use ($search) {
+                $q->where('id', 'like', "%{$search}%")
+                  ->orWhere('pickup_location', 'like', "%{$search}%")
+                  ->orWhere('destination', 'like', "%{$search}%")
+                  ->orWhere('material', 'like', "%{$search}%")
+                  ->orWhere('vehicle_number', 'like', "%{$search}%")
+                  ->orWhere('driver_name', 'like', "%{$search}%")
+                  ->orWhere('company_name', 'like', "%{$search}%");
+            });
+        }
+
+        // 5. Server-side Sorting
+        $sortKey = $request->input('sort', 'created_at');
+        $sortDir = strtolower($request->input('sort_direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+        $allowedSorts = ['id', 'status', 'start_date', 'delivery_date', 'distance', 'created_at'];
+        if (in_array($sortKey, $allowedSorts)) {
+            $query->orderBy($sortKey, $sortDir);
+        } else {
+            $query->orderBy('created_at', 'desc');
+        }
+
+        // 6. Capped Pagination (Max 100)
+        $perPage = min(100, max(1, (int) $request->input('per_page', 25)));
         $data = $query->paginate($perPage);
+
         return response()->json([
             'success' => true,
-            'data' => TripResource::collection($data),
-            'meta' => [
+            'message' => 'Trips fetched successfully',
+            'data'    => TripResource::collection($data),
+            'meta'    => [
                 'current_page' => $data->currentPage(),
-                'last_page' => $data->lastPage(),
-                'total' => $data->total(),
+                'last_page'    => $data->lastPage(),
+                'per_page'     => $data->perPage(),
+                'total'        => $data->total(),
             ]
         ]);
     }
@@ -60,11 +112,22 @@ class TripController extends Controller
         $trip = $this->estimator->estimateAndPersist($trip);
         $this->finance->createLedgerForTrip($trip);
 
+        // Link original uploaded transport document if provided
+        if ($request->filled('document_url') || $request->filled('document_path')) {
+            $docUrl = $request->input('document_url') ?: asset('storage/' . $request->input('document_path'));
+            $docType = $request->input('document_type', 'Transport Order / Consignment');
+            $trip->documents()->create([
+                'document_type' => $docType,
+                'document_url'  => $docUrl,
+            ]);
+        }
+
         event(new \App\Events\Domain\TripCreatedEvent($trip, auth()->id()));
 
         return response()->json([
             'success' => true,
-            'data' => new TripResource($trip)
+            'message' => 'Trip created successfully',
+            'data'    => new TripResource($trip)
         ], 201);
     }
 
@@ -73,7 +136,8 @@ class TripController extends Controller
         $trip->load(['company', 'driver', 'vehicle', 'order', 'documents', 'financeLedger', 'fuelEntries']);
         return response()->json([
             'success' => true,
-            'data' => new TripResource($trip)
+            'message' => 'Trip details fetched successfully',
+            'data'    => new TripResource($trip)
         ]);
     }
 
@@ -82,13 +146,11 @@ class TripController extends Controller
         $oldStatus = $trip->status;
         $data = $request->validated();
 
-        // If status changes to Running or start_odometer is provided, set start_date
         if ((isset($data['status']) && $data['status'] === 'Running' && $oldStatus === 'Assigned') 
             || (isset($data['start_odometer']) && !$trip->start_date)) {
             $data['start_date'] = now();
         }
 
-        // If status changes to Completed, set end_date
         if (isset($data['status']) && $data['status'] === 'Completed' && $oldStatus !== 'Completed') {
             $data['end_date'] = now();
             $data['delivery_date'] = now()->format('Y-m-d');
@@ -123,16 +185,13 @@ class TripController extends Controller
             );
         }
 
-        // Check if status changed
         if (isset($data['status']) && $data['status'] !== $oldStatus) {
             $newStatus = $data['status'];
 
-            // Sync status to the linked order if it exists
             if ($trip->order) {
                 $trip->order->update(['status' => $newStatus]);
             }
 
-            // Sync statuses to vehicle & driver
             if ($newStatus === 'Running') {
                 if ($trip->vehicle) $trip->vehicle->update(['status' => 'Running']);
                 if ($trip->driver) $trip->driver->update(['status' => 'On Trip']);
@@ -140,7 +199,6 @@ class TripController extends Controller
                 if ($trip->vehicle) $trip->vehicle->update(['status' => 'Available']);
                 if ($trip->driver) $trip->driver->update(['status' => 'Available']);
 
-                // Recompute fuel actuals & mileage once the trip is completed
                 $this->estimator->refreshTripActuals($trip);
                 $this->finance->syncTripDieselExpense($trip);
             } elseif ($newStatus === 'Cancelled') {
@@ -149,14 +207,18 @@ class TripController extends Controller
             }
         }
 
-        return response()->json(['success' => true, 'data' => new TripResource($trip)]);
+        return response()->json([
+            'success' => true,
+            'message' => 'Trip updated successfully',
+            'data'    => new TripResource($trip)
+        ]);
     }
 
     public function accept(Request $request, Trip $trip)
     {
-        if ($trip->status !== 'Assigned') return response()->json(['success' => false], 400);
+        if ($trip->status !== 'Assigned') return response()->json(['success' => false, 'message' => 'Trip is not Assigned'], 400);
         $trip->update(['status' => 'Running']);
-        return response()->json(['success' => true]);
+        return response()->json(['success' => true, 'message' => 'Trip accepted']);
     }
 
     public function start(Request $request, Trip $trip)
@@ -170,13 +232,13 @@ class TripController extends Controller
 
         event(new \App\Events\Domain\TripStartedEvent($trip, auth()->id()));
 
-        return response()->json(['success' => true]);
+        return response()->json(['success' => true, 'message' => 'Trip started']);
     }
 
     public function markDelivered(Request $request, Trip $trip)
     {
         $trip->update(['status' => 'Delivered']);
-        return response()->json(['success' => true]);
+        return response()->json(['success' => true, 'message' => 'Trip marked delivered']);
     }
 
     public function complete(Request $request, Trip $trip)
@@ -196,21 +258,20 @@ class TripController extends Controller
         if ($trip->vehicle) $trip->vehicle->update(['status' => 'Available']);
         if ($trip->driver) $trip->driver->update(['status' => 'Available']);
 
-        // Recompute fuel actuals & mileage once the trip is closed
         $this->estimator->refreshTripActuals($trip);
         $this->finance->syncTripDieselExpense($trip);
         
         event(new \App\Events\Domain\TripCompletedEvent($trip, auth()->id()));
 
-        return response()->json(['success' => true]);
+        return response()->json(['success' => true, 'message' => 'Trip completed']);
     }
     
     public function cancel(Request $request, Trip $trip)
     {
         $trip->update(['status' => 'Cancelled']);
         if ($trip->order) $trip->order->update(['status' => 'Cancelled']);
-        $trip->vehicle->update(['status' => 'Available']);
-        $trip->driver->update(['status' => 'Available']);
-        return response()->json(['success' => true]);
+        if ($trip->vehicle) $trip->vehicle->update(['status' => 'Available']);
+        if ($trip->driver) $trip->driver->update(['status' => 'Available']);
+        return response()->json(['success' => true, 'message' => 'Trip cancelled']);
     }
 }

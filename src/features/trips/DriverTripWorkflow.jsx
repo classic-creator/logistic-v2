@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { useTrips, useUpdateTrip, useDrivers, useVehicles } from '../../services/services';
+import { useTrips, useUpdateTrip, useDrivers, useVehicles, useCompanies } from '../../services/services';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Modal from '../../components/common/Modal';
 import MapContainer from '../../components/common/MapContainer';
 import CreateDispatchForm from './CreateDispatchForm';
+import DocumentReaderModal from '../../components/common/DocumentReaderModal';
 import FuelEntryForm from '../fuel/FuelEntryForm';
 import FuelTimeline from '../fuel/FuelTimeline';
 import {
@@ -19,6 +20,8 @@ import {
   PlusCircle,
   ExternalLink,
   Fuel,
+  Sparkles,
+  FileText,
 } from 'lucide-react';
 
 export const DriverTripWorkflow = () => {
@@ -28,7 +31,12 @@ export const DriverTripWorkflow = () => {
   const { data: trips, isLoading } = useTrips();
   const { data: drivers } = useDrivers();
   const { data: vehicles } = useVehicles();
+  const { data: companies } = useCompanies();
   const updateTripMutation = useUpdateTrip();
+
+  // Document Reader modal state
+  const [docReaderOpen, setDocReaderOpen] = useState(false);
+  const [tripDocUrl, setTripDocUrl] = useState(null);
 
   // Toggle for the always-available create & dispatch panel
   const [dispatchOpen, setDispatchOpen] = useState(false);
@@ -259,7 +267,41 @@ export const DriverTripWorkflow = () => {
               <span className="text-slate-500">Consignment Cargo</span>
               <span className="text-slate-300">{activeTrip.material} ({activeTrip.weight} Tons)</span>
             </div>
+            {tripDocUrl && (
+              <div className="flex justify-between items-center text-accent-emerald pt-1">
+                <span className="flex items-center gap-1 font-bold">
+                  <CheckCircle2 size={13} /> Transport Paper Attached
+                </span>
+                <span className="text-[10px] underline">View</span>
+              </div>
+            )}
           </div>
+
+          {/* Optional Document Upload / Reader trigger */}
+          <button
+            type="button"
+            onClick={() => setDocReaderOpen(true)}
+            className="w-full p-3 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-xs font-semibold text-slate-300 flex items-center justify-between transition-colors cursor-pointer"
+          >
+            <span className="flex items-center gap-2 text-indigo-400">
+              <Sparkles size={16} />
+              Upload & Scan Transport Order / LR
+            </span>
+            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+              {tripDocUrl ? 'Rescan Paper' : 'Scan Paper'}
+            </span>
+          </button>
+
+          <DocumentReaderModal
+            isOpen={docReaderOpen}
+            onClose={() => setDocReaderOpen(false)}
+            companies={companies?.data || []}
+            lockedVehicle={assignedVehicle}
+            lockedDriver={currentDriver}
+            onDocumentConfirmed={(data) => {
+              if (data.documentUrl) setTripDocUrl(data.documentUrl);
+            }}
+          />
 
           <Button variant="success" className="w-full flex items-center justify-center gap-2" onClick={handleAccept}>
             <Play size={16} />

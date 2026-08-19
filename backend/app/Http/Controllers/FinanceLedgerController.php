@@ -1,5 +1,6 @@
 <?php
 namespace App\Http\Controllers;
+
 use App\Models\FinanceLedger;
 use App\Http\Resources\FinanceLedgerResource;
 use App\Http\Requests\StoreFinanceLedgerRequest;
@@ -39,19 +40,57 @@ class FinanceLedgerController extends Controller
 
     public function index(Request $request)
     {
-        $query = FinanceLedger::query()->with('company');
-        if ($request->has('status')) {
-            $query->where('status', $request->status);
+        $query = FinanceLedger::query()->with(['company', 'trip']);
+
+        // 1. Tenant Company Scope (Security & Isolation)
+        $user = $request->user();
+        if ($user && !empty($user->company_id)) {
+            $query->where('company_id', $user->company_id);
+        } elseif ($request->filled('company_id')) {
+            $query->where('company_id', $request->input('company_id'));
         }
-        $perPage = $request->get('per_page', 15);
+
+        // 2. Status & Date Range Filtering
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+
+        if ($request->filled('date_from') && $request->filled('date_to')) {
+            $query->whereBetween('created_at', [$request->input('date_from'), $request->input('date_to')]);
+        }
+
+        // 3. Server-side Search
+        if ($request->filled('search')) {
+            $search = trim($request->input('search'));
+            $query->where(function ($q) use ($search) {
+                $q->where('id', 'like', "%{$search}%")
+                  ->orWhere('trip_id', 'like', "%{$search}%");
+            });
+        }
+
+        // 4. Server-side Sorting
+        $sortKey = $request->input('sort', 'created_at');
+        $sortDir = strtolower($request->input('sort_direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+        $allowedSorts = ['id', 'status', 'trip_amount', 'net_profit', 'pending_amount', 'created_at'];
+        if (in_array($sortKey, $allowedSorts)) {
+            $query->orderBy($sortKey, $sortDir);
+        } else {
+            $query->orderBy('created_at', 'desc');
+        }
+
+        // 5. Capped Pagination (Max 100)
+        $perPage = min(100, max(1, (int) $request->input('per_page', 25)));
         $data = $query->paginate($perPage);
+
         return response()->json([
             'success' => true,
-            'data' => FinanceLedgerResource::collection($data),
-            'meta' => [
+            'message' => 'Financial ledger records fetched successfully',
+            'data'    => FinanceLedgerResource::collection($data),
+            'meta'    => [
                 'current_page' => $data->currentPage(),
-                'last_page' => $data->lastPage(),
-                'total' => $data->total(),
+                'last_page'    => $data->lastPage(),
+                'per_page'     => $data->perPage(),
+                'total'        => $data->total(),
             ]
         ]);
     }
@@ -62,8 +101,8 @@ class FinanceLedgerController extends Controller
         $finance = FinanceLedger::create($data);
         return response()->json([
             'success' => true,
-            'message' => 'Created successfully',
-            'data' => new FinanceLedgerResource($finance)
+            'message' => 'Finance ledger record created successfully',
+            'data'    => new FinanceLedgerResource($finance)
         ], 201);
     }
 
@@ -72,7 +111,8 @@ class FinanceLedgerController extends Controller
         $finance->load('company', 'trip');
         return response()->json([
             'success' => true,
-            'data' => new FinanceLedgerResource($finance)
+            'message' => 'Finance ledger details fetched successfully',
+            'data'    => new FinanceLedgerResource($finance)
         ]);
     }
 
@@ -82,14 +122,17 @@ class FinanceLedgerController extends Controller
         $finance->update($data);
         return response()->json([
             'success' => true,
-            'message' => 'Updated successfully',
-            'data' => new FinanceLedgerResource($finance)
+            'message' => 'Finance ledger record updated successfully',
+            'data'    => new FinanceLedgerResource($finance)
         ]);
     }
 
     public function destroy(FinanceLedger $finance)
     {
         $finance->delete();
-        return response()->json(['success' => true]);
+        return response()->json([
+            'success' => true,
+            'message' => 'Finance ledger record deleted successfully'
+        ]);
     }
 }

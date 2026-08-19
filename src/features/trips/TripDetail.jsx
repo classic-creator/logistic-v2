@@ -266,6 +266,49 @@ export const TripDetail = () => {
       {/* Fuel Intelligence: estimation vs actual + timeline */}
       <TripFuelPanel trip={trip} />
 
+      {/* Linked Transport Documents */}
+      <div className="glass-panel rounded-xl p-5 border border-slate-800 space-y-4">
+        <h3 className="text-sm font-bold text-slate-100 font-display flex items-center justify-between border-b border-slate-800 pb-3">
+          <span className="flex items-center gap-2">
+            <FileText size={16} className="text-accent-indigo" />
+            Linked Transport Documents
+          </span>
+          <span className="text-[10px] text-slate-500 uppercase font-bold">
+            {(trip.documents || []).length} Document{(trip.documents || []).length !== 1 ? 's' : ''}
+          </span>
+        </h3>
+
+        {(trip.documents || []).length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {trip.documents.map((doc, idx) => (
+              <div key={doc.id || idx} className="p-3 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="p-2 rounded bg-indigo-500/10 text-accent-indigo">
+                    <FileText size={16} />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="font-bold text-slate-200 block truncate">{doc.document_type || doc.documentType || 'Transport Document'}</span>
+                    <span className="text-[10px] text-slate-500 block">Uploaded {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : 'Recently'}</span>
+                  </div>
+                </div>
+                <a
+                  href={doc.document_url || doc.documentUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-indigo-400 hover:text-indigo-300 font-bold text-[10px] transition-colors flex-shrink-0"
+                >
+                  View
+                </a>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-4 text-center rounded-lg bg-slate-900/40 border border-slate-800/80 text-xs text-slate-500">
+            No transport paper attached to this trip yet.
+          </div>
+        )}
+      </div>
+
       {/* Related order */}
       {trip.orderId && (
         <div className="glass-panel rounded-xl p-5 border border-slate-800 space-y-4">

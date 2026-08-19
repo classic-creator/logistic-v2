@@ -34,11 +34,18 @@ class FuelEntryController extends Controller
     public function index(Request $request)
     {
         $query = FuelEntry::query()
-            ->with(['trip', 'vehicle', 'driver', 'company'])
-            ->latest('filled_at');
+            ->with(['trip', 'vehicle', 'driver', 'company']);
 
-        foreach (['trip_id', 'vehicle_id', 'driver_id', 'company_id', 'status', 'fuel_type'] as $field) {
-            if ($request->has($field)) {
+        // 1. Tenant Company Scope (Security & Isolation)
+        $user = $request->user();
+        if ($user && !empty($user->company_id)) {
+            $query->where('company_id', $user->company_id);
+        } elseif ($request->filled('company_id')) {
+            $query->where('company_id', $request->input('company_id'));
+        }
+
+        foreach (['trip_id', 'vehicle_id', 'driver_id', 'status', 'fuel_type'] as $field) {
+            if ($request->filled($field)) {
                 $query->where($field, $request->input($field));
             }
         }
@@ -47,20 +54,44 @@ class FuelEntryController extends Controller
             $query->where('is_flagged', true);
         }
 
-        if ($request->has('from') && $request->has('to')) {
+        if ($request->filled('from') && $request->filled('to')) {
             $query->whereBetween('filled_at', [$request->input('from'), $request->input('to')]);
         }
 
-        $perPage = $request->get('per_page', 15);
+        // 2. Server-side Search
+        if ($request->filled('search')) {
+            $search = trim($request->input('search'));
+            $query->where(function ($q) use ($search) {
+                $q->where('station_name', 'like', "%{$search}%")
+                  ->orWhere('fuel_type', 'like', "%{$search}%")
+                  ->orWhere('payment_method', 'like', "%{$search}%")
+                  ->orWhere('remarks', 'like', "%{$search}%");
+            });
+        }
+
+        // 3. Server-side Sorting
+        $sortKey = $request->input('sort', 'filled_at');
+        $sortDir = strtolower($request->input('sort_direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+        $allowedSorts = ['id', 'filled_at', 'total_cost', 'quantity', 'status', 'created_at'];
+        if (in_array($sortKey, $allowedSorts)) {
+            $query->orderBy($sortKey, $sortDir);
+        } else {
+            $query->orderBy('filled_at', 'desc');
+        }
+
+        // 4. Server-side Capped Pagination (Max 100)
+        $perPage = min(100, max(1, (int) $request->input('per_page', 25)));
         $data = $query->paginate($perPage);
 
         return response()->json([
             'success' => true,
-            'data' => FuelEntryResource::collection($data),
-            'meta' => [
+            'message' => 'Fuel entries fetched successfully',
+            'data'    => FuelEntryResource::collection($data),
+            'meta'    => [
                 'current_page' => $data->currentPage(),
-                'last_page' => $data->lastPage(),
-                'total' => $data->total(),
+                'last_page'    => $data->lastPage(),
+                'per_page'     => $data->perPage(),
+                'total'        => $data->total(),
             ]
         ]);
     }
@@ -105,8 +136,9 @@ class FuelEntryController extends Controller
         ], 201);
     }
 
-    public function show(FuelEntry $fuelEntry)
+    public function show(Request $request, FuelEntry $fuelEntry)
     {
+        $this->authorizeTenantAccess($request, $fuelEntry);
         $fuelEntry->load(['trip', 'vehicle', 'driver', 'company']);
         return response()->json([
             'success' => true,
@@ -116,6 +148,7 @@ class FuelEntryController extends Controller
 
     public function update(UpdateFuelEntryRequest $request, FuelEntry $fuelEntry)
     {
+        $this->authorizeTenantAccess($request, $fuelEntry);
         $data = $request->validated();
 
         if (array_key_exists('trip_id', $data) && $data['trip_id'] && $data['trip_id'] != $fuelEntry->trip_id) {
@@ -141,8 +174,9 @@ class FuelEntryController extends Controller
         ]);
     }
 
-    public function destroy(FuelEntry $fuelEntry)
+    public function destroy(Request $request, FuelEntry $fuelEntry)
     {
+        $this->authorizeTenantAccess($request, $fuelEntry);
         $trip = $fuelEntry->trip;
         $vehicle = $fuelEntry->vehicle;
         $fuelEntry->delete();
@@ -160,13 +194,19 @@ class FuelEntryController extends Controller
 
     public function approve(Request $request, FuelEntry $fuelEntry)
     {
-        $fuelEntry->update([
-            'status' => FuelEntry::STATUS_APPROVED,
-            'approved_by' => $request->user()?->id,
-            'approved_at' => now(),
-        ]);
-        $fuelEntry = $this->anomalies->inspect($fuelEntry);
-        $this->afterEntryChange($fuelEntry);
+        $this->authorizeTenantAccess($request, $fuelEntry);
+
+        // Atomic approval & finance transaction
+        $fuelEntry = DB::transaction(function () use ($request, $fuelEntry) {
+            $fuelEntry->update([
+                'status' => FuelEntry::STATUS_APPROVED,
+                'approved_by' => $request->user()?->id,
+                'approved_at' => now(),
+            ]);
+            $fuelEntry = $this->anomalies->inspect($fuelEntry);
+            $this->afterEntryChange($fuelEntry);
+            return $fuelEntry;
+        });
 
         event(new \App\Events\Domain\FuelApprovedEvent($fuelEntry, auth()->id()));
 
@@ -228,6 +268,17 @@ class FuelEntryController extends Controller
         }
         if ($entry->vehicle_id) {
             $this->estimator->refreshVehicleMileage($entry->vehicle);
+        }
+    }
+
+    /**
+     * Security & Tenant Scoping Guard (IDOR Protection)
+     */
+    protected function authorizeTenantAccess(Request $request, FuelEntry $fuelEntry): void
+    {
+        $user = $request->user();
+        if ($user && !empty($user->company_id) && $fuelEntry->company_id && $fuelEntry->company_id != $user->company_id) {
+            abort(403, 'Unauthorized access to fuel entry for another company tenant');
         }
     }
 }

@@ -12,6 +12,8 @@ use App\Services\Intelligence\StatisticsAggregator;
 use App\Services\Intelligence\LearningEngine;
 use App\Services\Intelligence\FuelScoreCalculator;
 use App\Services\Intelligence\PredictionEngine;
+use App\Services\Intelligence\PythonMlService;
+use App\Services\Intelligence\StageEngine;
 
 class RecalculateStatisticsJob implements ShouldQueue
 {
@@ -28,7 +30,8 @@ class RecalculateStatisticsJob implements ShouldQueue
         StatisticsAggregator $aggregator,
         LearningEngine $learningEngine,
         FuelScoreCalculator $scoreCalculator,
-        PredictionEngine $predictionEngine
+        PredictionEngine $predictionEngine,
+        PythonMlService $mlService
     ): void {
         $this->trip->load('vehicle', 'driver', 'order.company');
 
@@ -69,6 +72,34 @@ class RecalculateStatisticsJob implements ShouldQueue
             $this->trip->update([
                 'fuel_variance_percent' => (($this->trip->actual_fuel_cost - $this->trip->fuel_budget) / $this->trip->fuel_budget) * 100
             ]);
+        }
+
+        // Automatic Real Data ML Retraining Loop
+        $totalValidRealTrips = Trip::where('status', 'Completed')
+            ->where('is_synthetic', false)
+            ->whereNotNull('actual_fuel_liters')
+            ->count();
+
+        if ($totalValidRealTrips >= StageEngine::ML_ACTIVATION_THRESHOLD) {
+            $realTripsData = Trip::where('status', 'Completed')
+                ->where('is_synthetic', false)
+                ->whereNotNull('actual_fuel_liters')
+                ->with(['vehicle', 'driver', 'order'])
+                ->get()
+                ->map(fn($t) => [
+                    'distance_km'      => (float) ($t->actual_distance ?: ($t->estimated_distance ?? 0)),
+                    'cargo_weight'     => (float) ($t->cargo_weight ?? 0),
+                    'vehicle_capacity' => (float) ($t->vehicle?->capacity ?? 10000),
+                    'driver_score'     => (float) ($t->driver?->statistic?->driving_efficiency_score ?? 75),
+                    'vehicle_age_km'   => (float) ($t->vehicle?->last_odometer ?? 50000),
+                    'vehicle_type'     => strtolower($t->vehicle?->type ?? 'truck'),
+                    'route_terrain'    => 'mixed',
+                    'traffic_index'    => 'mixed',
+                    'temp_celsius'     => 28.0,
+                    'actual_fuel_liters' => (float) $t->actualFuelLiters(),
+                ])->toArray();
+
+            $mlService->retrain($realTripsData);
         }
     }
 }

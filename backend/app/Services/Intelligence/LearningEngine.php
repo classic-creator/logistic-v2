@@ -7,6 +7,7 @@ use App\Models\Driver;
 use App\Models\Trip;
 use App\Models\VehicleStatistic;
 use App\Models\LearningHistory;
+use App\Models\FuelEntry;
 
 class LearningEngine
 {
@@ -14,8 +15,14 @@ class LearningEngine
 
     public function learnVehicleMileage(Vehicle $vehicle, ?Trip $triggerTrip = null): float
     {
+        // STRICT SYNTHETIC ISOLATION: Exclude synthetic data from production EWMA learning
         $trips = Trip::where('vehicle_id', $vehicle->id)
             ->where('status', 'Completed')
+            ->where('is_synthetic', false)
+            ->whereHas('fuelEntries', function ($q) {
+                $q->where('status', FuelEntry::STATUS_APPROVED)
+                  ->where('is_synthetic', false);
+            })
             ->orderBy('end_date', 'desc')
             ->get();
             
@@ -25,10 +32,19 @@ class LearningEngine
         
         foreach ($trips as $i => $trip) {
             $dist = $trip->actualDistance();
-            $liters = $trip->actualFuelLiters();
+            $approvedEntries = $trip->fuelEntries()
+                ->where('status', FuelEntry::STATUS_APPROVED)
+                ->where('is_synthetic', false)
+                ->get();
+            $liters = (float) $approvedEntries->sum('quantity');
+            
             if ($dist <= 0 || $liters <= 0) continue;
             
             $mileage = $dist / $liters;
+            
+            // Exclude extreme physical outliers (< 1 km/L or > 25 km/L)
+            if ($mileage < 1.0 || $mileage > 25.0) continue;
+
             $weight = pow(self::DECAY_FACTOR, $i);
             
             $numerator += $mileage * $weight;
@@ -36,12 +52,12 @@ class LearningEngine
             $dataPoints++;
         }
         
-        $learnedMileage = $denominator > 0 ? $numerator / $denominator : 0;
+        $learnedMileage = $denominator > 0 ? round($numerator / $denominator, 2) : 0;
         $manufacturerMileage = (float) $vehicle->manufacturer_mileage;
         if ($manufacturerMileage <= 0) $manufacturerMileage = 4.0;
         
         if ($dataPoints < 3) {
-            $learnedMileage = ($manufacturerMileage * (3 - $dataPoints) / 3) + ($learnedMileage * $dataPoints / 3);
+            $learnedMileage = round(($manufacturerMileage * (3 - $dataPoints) / 3) + ($learnedMileage * $dataPoints / 3), 2);
         }
         
         $confidence = min(1.0, $dataPoints / 20);
@@ -59,11 +75,20 @@ class LearningEngine
             'trip_id' => $triggerTrip?->id,
         ]);
         
+        $learningStage = $dataPoints >= 30 ? 4 : ($dataPoints >= 6 ? 3 : ($dataPoints >= 1 ? 2 : 1));
+        $dataSource = $dataPoints > 0 ? 'REAL' : 'BASELINE';
+
         VehicleStatistic::updateOrCreate(
             ['vehicle_id' => $vehicle->id],
             [
                 'current_learned_mileage' => $learnedMileage,
+                'avg_mileage_kmpl' => $learnedMileage,
                 'confidence_score' => $confidence,
+                'valid_trips_count' => $dataPoints,
+                'real_trips_count' => $trips->count(),
+                'learning_stage' => $learningStage,
+                'data_source' => $dataSource,
+                'ml_ready' => $dataPoints >= 30,
             ]
         );
         
@@ -74,6 +99,11 @@ class LearningEngine
     {
         $trips = Trip::where('driver_id', $driver->id)
             ->where('status', 'Completed')
+            ->where('is_synthetic', false)
+            ->whereHas('fuelEntries', function ($q) {
+                $q->where('status', FuelEntry::STATUS_APPROVED)
+                  ->where('is_synthetic', false);
+            })
             ->orderBy('end_date', 'desc')
             ->get();
             
@@ -83,10 +113,17 @@ class LearningEngine
         
         foreach ($trips as $i => $trip) {
             $dist = $trip->actualDistance();
-            $liters = $trip->actualFuelLiters();
+            $approvedEntries = $trip->fuelEntries()
+                ->where('status', FuelEntry::STATUS_APPROVED)
+                ->where('is_synthetic', false)
+                ->get();
+            $liters = (float) $approvedEntries->sum('quantity');
+            
             if ($dist <= 0 || $liters <= 0) continue;
             
             $mileage = $dist / $liters;
+            if ($mileage < 1.0 || $mileage > 25.0) continue;
+
             $weight = pow(self::DECAY_FACTOR, $i);
             
             $numerator += $mileage * $weight;
@@ -94,13 +131,13 @@ class LearningEngine
             $dataPoints++;
         }
         
-        $learnedMileage = $denominator > 0 ? $numerator / $denominator : 4.0;
+        $learnedMileage = $denominator > 0 ? round($numerator / $denominator, 2) : 4.0;
         $confidence = min(1.0, $dataPoints / 20);
         
         LearningHistory::create([
             'entity_type' => Driver::class,
             'entity_id' => $driver->id,
-            'previous_mileage' => 0, // Simplified
+            'previous_mileage' => 0,
             'new_mileage' => $learnedMileage,
             'confidence_score' => $confidence,
             'data_points_used' => $dataPoints,
@@ -117,6 +154,11 @@ class LearningEngine
         $trips = Trip::where('pickup_location', $pickup)
             ->where('destination', $destination)
             ->where('status', 'Completed')
+            ->where('is_synthetic', false)
+            ->whereHas('fuelEntries', function ($q) {
+                $q->where('status', FuelEntry::STATUS_APPROVED)
+                  ->where('is_synthetic', false);
+            })
             ->orderBy('end_date', 'desc')
             ->get();
             
@@ -126,10 +168,17 @@ class LearningEngine
         
         foreach ($trips as $i => $trip) {
             $dist = $trip->actualDistance();
-            $liters = $trip->actualFuelLiters();
+            $approvedEntries = $trip->fuelEntries()
+                ->where('status', FuelEntry::STATUS_APPROVED)
+                ->where('is_synthetic', false)
+                ->get();
+            $liters = (float) $approvedEntries->sum('quantity');
+            
             if ($dist <= 0 || $liters <= 0) continue;
             
             $mileage = $dist / $liters;
+            if ($mileage < 1.0 || $mileage > 25.0) continue;
+
             $weight = pow(self::DECAY_FACTOR, $i);
             
             $numerator += $mileage * $weight;
@@ -137,11 +186,7 @@ class LearningEngine
             $dataPoints++;
         }
         
-        $learnedMileage = $denominator > 0 ? $numerator / $denominator : 4.0;
-        
-        // Save history logic could be added for routes (omitted for brevity, using string keys typically)
-        
-        return $learnedMileage;
+        return $denominator > 0 ? round($numerator / $denominator, 2) : 4.0;
     }
 
     public function getConfidenceScore(string $entityType, int $entityId): float

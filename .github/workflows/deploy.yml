@@ -1,0 +1,104 @@
+name: Deploy to Hostinger
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  ci-tests:
+    name: Run Lints and Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Backend CI
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, xml, ctype, iconv, mysql, sqlite3
+          coverage: none
+
+      - name: Install Composer Dependencies
+        run: |
+          cd backend
+          composer install --no-progress --prefer-dist --no-interaction
+
+      - name: Run Backend Tests
+        run: |
+          cd backend
+          cp .env.example .env
+          php artisan key:generate
+          touch database/database.sqlite
+          php artisan test
+
+      # Frontend CI
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Frontend Dependencies
+        run: npm ci
+
+      - name: Run Frontend Lint
+        run: npm run lint
+
+  build-and-deploy:
+    name: Build & Deploy via SSH
+    needs: ci-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install & Build Frontend
+        env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
+          VITE_GOOGLE_MAPS_MAP_ID: ${{ secrets.VITE_GOOGLE_MAPS_MAP_ID }}
+        run: |
+          npm ci
+          npm run build
+
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HOSTINGER_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -p ${{ secrets.HOSTINGER_SSH_PORT || 65002 }} -H "${{ secrets.HOSTINGER_SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      # Create deployment tarball excluding unnecessary build items
+      - name: Package Release
+        run: |
+          tar -czf release.tar.gz \
+            backend/ \
+            dist/ \
+            ml_service/ \
+            scripts/deploy.sh \
+            --exclude='backend/node_modules' \
+            --exclude='backend/vendor' \
+            --exclude='backend/storage/logs/*.log' \
+            --exclude='backend/.env' \
+            --exclude='node_modules'
+
+      # Upload deployment package to Hostinger via SCP
+      - name: Upload Package
+        run: |
+          scp -P ${{ secrets.HOSTINGER_SSH_PORT || 65002 }} release.tar.gz ${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }}:${{ secrets.HOSTINGER_DEPLOY_PATH }}/release.tar.gz
+
+      # Connect via SSH, extract the release, setup dependencies, run migrations & caches
+      - name: Execute Server Deploy Script
+        run: |
+          ssh -p ${{ secrets.HOSTINGER_SSH_PORT || 65002 }} ${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }} \
+            "bash ${{ secrets.HOSTINGER_DEPLOY_PATH }}/scripts/deploy.sh ${{ secrets.HOSTINGER_DEPLOY_PATH }}"

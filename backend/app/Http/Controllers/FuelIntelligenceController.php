@@ -36,6 +36,28 @@ class FuelIntelligenceController extends Controller
         $this->mlService  = $mlService;
     }
 
+    protected function getCompanyId(Request $request): ?int
+    {
+        $user = $request->user();
+        if ($user && !empty($user->company_id)) {
+            return (int) $user->company_id;
+        }
+        return $request->filled('company_id') ? (int) $request->input('company_id') : null;
+    }
+
+    protected function getBranchId(Request $request): ?int
+    {
+        return $request->filled('branch_id') ? (int) $request->input('branch_id') : null;
+    }
+
+    protected function authorizeTripTenant(Request $request, Trip $trip): void
+    {
+        $companyId = $this->getCompanyId($request);
+        if ($companyId && $trip->company_id && $trip->company_id != $companyId) {
+            abort(403, 'Unauthorized access to trip data for another company tenant');
+        }
+    }
+
     /**
      * Live estimate preview used before a trip is created.
      * Accepts a trip_id (already created) or raw inputs {vehicle_id, distance, pickup_location}.
@@ -70,8 +92,9 @@ class FuelIntelligenceController extends Controller
     /**
      * Estimation vs actual comparison for one trip.
      */
-    public function tripBreakdown(Trip $trip)
+    public function tripBreakdown(Request $request, Trip $trip)
     {
+        $this->authorizeTripTenant($request, $trip);
         $trip->load(['fuelEntries', 'vehicle.statistic', 'driver.statistic', 'prediction']);
 
         if (!$trip->estimated_fuel_liters) {
@@ -147,20 +170,29 @@ class FuelIntelligenceController extends Controller
         $today = Carbon::today();
         $monthStart = $today->copy()->startOfMonth();
 
-        $todayEntries = FuelEntry::where('status', FuelEntry::STATUS_APPROVED)
-            ->whereDate('filled_at', $today)->get();
-        $monthEntries = FuelEntry::where('status', FuelEntry::STATUS_APPROVED)
-            ->whereDate('filled_at', '>=', $monthStart)->get();
-        $allEntries = FuelEntry::where('status', FuelEntry::STATUS_APPROVED)->get();
+        $companyId = $this->getCompanyId($request);
+        $branchId = $this->getBranchId($request);
 
-        $todayTrips = Trip::whereDate('start_date', $today)->get();
+        $fuelQuery = FuelEntry::where('status', FuelEntry::STATUS_APPROVED);
+        if ($companyId) $fuelQuery->where('company_id', $companyId);
+        if ($branchId) $fuelQuery->where('branch_id', $branchId);
+
+        $tripQuery = Trip::query();
+        if ($companyId) $tripQuery->where('company_id', $companyId);
+        if ($branchId) $tripQuery->where('branch_id', $branchId);
+
+        $todayEntries = (clone $fuelQuery)->whereDate('filled_at', $today)->get();
+        $monthEntries = (clone $fuelQuery)->whereDate('filled_at', '>=', $monthStart)->get();
+        $allEntries = (clone $fuelQuery)->get();
+
+        $todayTrips = (clone $tripQuery)->whereDate('start_date', $today)->get();
+        $completedTrips = (clone $tripQuery)->where('status', 'Completed')->get();
 
         $todayActualCost = (float) $todayEntries->sum('total_cost');
         $todayEstimate = (float) $todayTrips->sum('estimated_fuel_cost');
         $monthActualCost = (float) $monthEntries->sum('total_cost');
 
         // Cost per km from approved entries vs completed-trip distance
-        $completedTrips = Trip::where('status', 'Completed')->get();
         $totalDistance = (float) $completedTrips->sum(fn ($t) => $t->actualDistance());
         $totalLiters = (float) $allEntries->sum('quantity');
         $totalCost = (float) $allEntries->sum('total_cost');
@@ -211,10 +243,15 @@ class FuelIntelligenceController extends Controller
         $from = $request->get('from');
         $to = $request->get('to');
 
+        $companyId = $this->getCompanyId($request);
+        $branchId = $this->getBranchId($request);
+
         $query = FuelEntry::query()
             ->where('status', FuelEntry::STATUS_APPROVED)
             ->with(['vehicle', 'driver', 'company', 'trip']);
 
+        if ($companyId) $query->where('company_id', $companyId);
+        if ($branchId) $query->where('branch_id', $branchId);
         if ($fuelType) $query->where('fuel_type', $fuelType);
         if ($from && $to) $query->whereBetween('filled_at', [$from, $to]);
 
@@ -226,7 +263,7 @@ class FuelIntelligenceController extends Controller
             'company' => $this->companyStats($entries),
             'month' => $this->monthlySeries($entries),
             'year' => $this->yearlySeries($entries),
-            'anomalies' => $this->anomalyStats(),
+            'anomalies' => $this->anomalyStats($request),
             default => $this->vehicleStats($entries),
         };
 
@@ -860,5 +897,76 @@ class FuelIntelligenceController extends Controller
         $result = $this->mlService->retrain($trips);
 
         return response()->json(['success' => true, 'data' => $result]);
+    }
+
+    /**
+     * Fuel Intelligence Data Health & Cold-Start Readiness Summary.
+     */
+    public function dataHealth(Request $request)
+    {
+        $companyId = $this->getCompanyId($request);
+        $branchId = $this->getBranchId($request);
+
+        $tripQuery = Trip::query();
+        if ($companyId) $tripQuery->where('company_id', $companyId);
+        if ($branchId) $tripQuery->where('branch_id', $branchId);
+
+        $fuelQuery = FuelEntry::query();
+        if ($companyId) $fuelQuery->where('company_id', $companyId);
+        if ($branchId) $fuelQuery->where('branch_id', $branchId);
+
+        $totalRealTrips = (clone $tripQuery)->where('is_synthetic', false)->count();
+        $validTrips = (clone $tripQuery)->where('is_synthetic', false)->where('status', 'Completed')->count();
+        $syntheticTrips = (clone $tripQuery)->where('is_synthetic', true)->count();
+
+        $totalFuelRecords = (clone $fuelQuery)->count();
+        $approvedFuelRecords = (clone $fuelQuery)->where('status', FuelEntry::STATUS_APPROVED)->count();
+        $rejectedFuelRecords = (clone $fuelQuery)->where('status', FuelEntry::STATUS_REJECTED)->count();
+        $flaggedFuelRecords = (clone $fuelQuery)->where('is_flagged', true)->count();
+
+        $mlReadyVehicles = VehicleStatistic::where('ml_ready', true)->count();
+        $vehiclesSufficientData = VehicleStatistic::where('valid_trips_count', '>=', 6)->count();
+        $vehiclesInsufficientData = VehicleStatistic::where('valid_trips_count', '<', 6)->count();
+
+        $mlReadyRoutes = RouteStatistic::where('ml_ready', true)->count();
+        $driversSufficientData = DriverStatistic::where('valid_trips_count', '>=', 6)->count();
+
+        $qualityScore = 100;
+        if ($totalFuelRecords > 0) {
+            $rejectedRatio = ($rejectedFuelRecords / $totalFuelRecords) * 100;
+            $flaggedRatio = ($flaggedFuelRecords / $totalFuelRecords) * 100;
+            $qualityScore = max(0, min(100, round(100 - ($rejectedRatio * 0.5) - ($flaggedRatio * 0.3))));
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'trips' => [
+                    'total_real' => $totalRealTrips,
+                    'valid' => $validTrips,
+                    'synthetic' => $syntheticTrips,
+                ],
+                'fuel_records' => [
+                    'total' => $totalFuelRecords,
+                    'approved' => $approvedFuelRecords,
+                    'rejected' => $rejectedFuelRecords,
+                    'flagged' => $flaggedFuelRecords,
+                ],
+                'entity_readiness' => [
+                    'vehicles_ml_ready' => $mlReadyVehicles,
+                    'vehicles_sufficient' => $vehiclesSufficientData,
+                    'vehicles_insufficient' => $vehiclesInsufficientData,
+                    'drivers_sufficient' => $driversSufficientData,
+                    'routes_ml_ready' => $mlReadyRoutes,
+                ],
+                'ml_activation' => [
+                    'threshold_required' => \App\Services\Intelligence\StageEngine::ML_ACTIVATION_THRESHOLD,
+                    'current_real_trips' => $validTrips,
+                    'is_ml_active' => $validTrips >= \App\Services\Intelligence\StageEngine::ML_ACTIVATION_THRESHOLD,
+                    'activation_percentage' => min(100, round(($validTrips / \App\Services\Intelligence\StageEngine::ML_ACTIVATION_THRESHOLD) * 100)),
+                ],
+                'overall_data_quality_score' => $qualityScore,
+            ]
+        ]);
     }
 }

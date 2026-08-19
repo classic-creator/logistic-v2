@@ -23,10 +23,28 @@ export const OrderList = () => {
   const { currentRole } = useSelector((state) => state.auth);
   const navigate = useNavigate();
 
-  const { data: orders, isLoading: ordersLoading } = useOrders();
+  const [queryParams, setQueryParams] = useState({
+    page: 1,
+    per_page: 25,
+    search: '',
+    sort: 'created_at',
+    sort_direction: 'desc'
+  });
+
+  const { data: orders, isLoading: ordersLoading } = useOrders(queryParams);
   const { data: companies } = useCompanies();
   const { data: vehicles } = useVehicles();
   const { data: drivers } = useDrivers();
+
+  const handleFetchData = ({ page, pageSize, search, sortKey, sortDirection }) => {
+    setQueryParams({
+      page,
+      per_page: pageSize,
+      search: search || '',
+      sort: sortKey || 'created_at',
+      sort_direction: sortDirection || 'desc'
+    });
+  };
 
   const createOrderMutation = useCreateOrder();
   const createTripMutation = useCreateTrip();
@@ -353,7 +371,11 @@ export const OrderList = () => {
           </div>
           <Table
             columns={columns}
-            data={activeOrders}
+            data={orders || []}
+            serverPagination={true}
+            totalRows={orders?.meta?.total || (orders || []).length}
+            onFetchData={handleFetchData}
+            initialPageSize={25}
             searchPlaceholder="Search active orders by ID, company, pickup..."
             searchFields={['id', 'companyName', 'pickupLocation', 'destination', 'status']}
           />

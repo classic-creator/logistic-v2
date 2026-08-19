@@ -17,24 +17,39 @@ class StatisticsAggregator
 {
     public function recalculateVehicle(Vehicle $vehicle): VehicleStatistic
     {
-        $trips = Trip::where('vehicle_id', $vehicle->id)->where('status', 'Completed')->get();
+        // STRICT SYNTHETIC ISOLATION: Exclude synthetic test data from production statistics
+        $trips = Trip::where('vehicle_id', $vehicle->id)
+            ->where('status', 'Completed')
+            ->where('is_synthetic', false)
+            ->get();
+            
         $totalTrips = $trips->count();
         $totalDistance = $trips->sum(fn($t) => $t->actualDistance() ?: $t->estimated_distance);
         
-        $fuelEntries = FuelEntry::where('vehicle_id', $vehicle->id)->where('status', FuelEntry::STATUS_APPROVED)->get();
+        $fuelEntries = FuelEntry::where('vehicle_id', $vehicle->id)
+            ->where('status', FuelEntry::STATUS_APPROVED)
+            ->where('is_synthetic', false)
+            ->get();
+            
         $totalFuelLiters = $fuelEntries->sum('quantity');
         $totalFuelCost = $fuelEntries->sum('total_cost');
         
         $avgMileage = $totalFuelLiters > 0 ? round($totalDistance / $totalFuelLiters, 2) : 0;
+        $learningStage = $totalTrips >= 30 ? 4 : ($totalTrips >= 6 ? 3 : ($totalTrips >= 1 ? 2 : 1));
         
         return VehicleStatistic::updateOrCreate(
             ['vehicle_id' => $vehicle->id],
             [
                 'total_trips' => $totalTrips,
+                'real_trips_count' => $totalTrips,
+                'valid_trips_count' => $totalTrips,
                 'total_distance_km' => $totalDistance,
                 'total_fuel_liters' => $totalFuelLiters,
                 'total_fuel_cost' => $totalFuelCost,
                 'avg_mileage_kmpl' => $avgMileage,
+                'learning_stage' => $learningStage,
+                'data_source' => $totalTrips > 0 ? 'REAL' : 'BASELINE',
+                'ml_ready' => $totalTrips >= 30,
                 'last_calculated_at' => now(),
             ]
         );
@@ -42,26 +57,40 @@ class StatisticsAggregator
 
     public function recalculateDriver(Driver $driver): DriverStatistic
     {
-        $trips = Trip::where('driver_id', $driver->id)->where('status', 'Completed')->get();
+        $trips = Trip::where('driver_id', $driver->id)
+            ->where('status', 'Completed')
+            ->where('is_synthetic', false)
+            ->get();
+            
         $totalTrips = $trips->count();
         $totalDistance = $trips->sum(fn($t) => $t->actualDistance() ?: $t->estimated_distance);
         
-        $fuelEntries = FuelEntry::where('driver_id', $driver->id)->where('status', FuelEntry::STATUS_APPROVED)->get();
+        $fuelEntries = FuelEntry::where('driver_id', $driver->id)
+            ->where('status', FuelEntry::STATUS_APPROVED)
+            ->where('is_synthetic', false)
+            ->get();
+            
         $totalFuelLiters = $fuelEntries->sum('quantity');
         $totalFuelCost = $fuelEntries->sum('total_cost');
         
         $avgMileage = $totalFuelLiters > 0 ? round($totalDistance / $totalFuelLiters, 2) : 0;
         $avgCostPerKm = $totalDistance > 0 ? round($totalFuelCost / $totalDistance, 2) : 0;
+        $learningStage = $totalTrips >= 30 ? 4 : ($totalTrips >= 6 ? 3 : ($totalTrips >= 1 ? 2 : 1));
         
         return DriverStatistic::updateOrCreate(
             ['driver_id' => $driver->id],
             [
                 'total_trips' => $totalTrips,
+                'real_trips_count' => $totalTrips,
+                'valid_trips_count' => $totalTrips,
                 'total_distance_km' => $totalDistance,
                 'total_fuel_liters' => $totalFuelLiters,
                 'total_fuel_cost' => $totalFuelCost,
                 'avg_mileage_kmpl' => $avgMileage,
                 'avg_fuel_cost_per_km' => $avgCostPerKm,
+                'learning_stage' => $learningStage,
+                'data_source' => $totalTrips > 0 ? 'REAL' : 'BASELINE',
+                'ml_ready' => $totalTrips >= 30,
                 'last_calculated_at' => now(),
             ]
         );
@@ -73,15 +102,23 @@ class StatisticsAggregator
         $trips = Trip::where('pickup_location', $pickup)
             ->where('destination', $destination)
             ->where('status', 'Completed')
+            ->where('is_synthetic', false)
             ->with(['financeLedger', 'fuelEntries' => function($q) {
-                $q->where('status', FuelEntry::STATUS_APPROVED);
+                $q->where('status', FuelEntry::STATUS_APPROVED)
+                  ->where('is_synthetic', false);
             }])->get();
             
         $totalTrips = $trips->count();
         if ($totalTrips === 0) {
             return RouteStatistic::firstOrCreate(
                 ['route_key' => $routeKey],
-                ['pickup_location' => $pickup, 'destination' => $destination]
+                [
+                    'pickup_location' => $pickup,
+                    'destination' => $destination,
+                    'data_source' => 'BASELINE',
+                    'learning_stage' => 1,
+                    'ml_ready' => false,
+                ]
             );
         }
         
@@ -146,6 +183,8 @@ class StatisticsAggregator
                 'pickup_location' => $pickup,
                 'destination' => $destination,
                 'total_trips' => $totalTrips,
+                'real_trips_count' => $totalTrips,
+                'valid_trips_count' => $totalTrips,
                 'avg_distance_km' => $totalDistance / $totalTrips,
                 'avg_fuel_liters' => $totalFuelLiters / $totalTrips,
                 'avg_fuel_cost' => $totalCost / $totalTrips,
@@ -157,6 +196,9 @@ class StatisticsAggregator
                 'best_driver_id' => $bestDriverId,
                 'worst_vehicle_id' => $worstVehicleId,
                 'worst_driver_id' => $worstDriverId,
+                'data_source' => 'REAL',
+                'learning_stage' => $totalTrips >= 30 ? 4 : ($totalTrips >= 6 ? 3 : 2),
+                'ml_ready' => $totalTrips >= 30,
             ]
         );
     }
@@ -165,6 +207,7 @@ class StatisticsAggregator
     {
         $trips = Trip::where('company_id', $company->id)
             ->where('status', 'Completed')
+            ->where('is_synthetic', false)
             ->with('financeLedger')
             ->get();
             
@@ -218,7 +261,7 @@ class StatisticsAggregator
         Driver::all()->each(fn($d) => $this->recalculateDriver($d));
         Company::all()->each(fn($c) => $this->recalculateCustomer($c));
         
-        $routes = Trip::where('status', 'Completed')->select('pickup_location', 'destination')->distinct()->get();
+        $routes = Trip::where('status', 'Completed')->where('is_synthetic', false)->select('pickup_location', 'destination')->distinct()->get();
         foreach ($routes as $route) {
             if ($route->pickup_location && $route->destination) {
                 $this->recalculateRoute($route->pickup_location, $route->destination);

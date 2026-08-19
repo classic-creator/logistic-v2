@@ -7,8 +7,11 @@ export const useFuelEntries = (params = {}) => {
     queryKey: ['fuel-entries', params],
     queryFn: async () => {
       const response = await apiClient.get('/api/v1/fuel-entries', { params });
-      return response.data?.data || [];
-    }
+      const items = response.data?.data || [];
+      items.meta = response.data?.meta || {};
+      return items;
+    },
+    staleTime: 30000,
   });
 };
 

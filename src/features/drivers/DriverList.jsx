@@ -16,10 +16,28 @@ import { useForm } from 'react-hook-form';
 
 export const DriverList = () => {
   const navigate = useNavigate();
-  const { data: drivers, isLoading } = useDrivers();
+  const [queryParams, setQueryParams] = useState({
+    page: 1,
+    per_page: 25,
+    search: '',
+    sort: 'created_at',
+    sort_direction: 'desc'
+  });
+
+  const { data: drivers, isLoading } = useDrivers(queryParams);
   const createMutation = useCreateDriver();
   const updateMutation = useUpdateDriver();
   const deleteMutation = useDeleteDriver();
+
+  const handleFetchData = ({ page, pageSize, search, sortKey, sortDirection }) => {
+    setQueryParams({
+      page,
+      per_page: pageSize,
+      search: search || '',
+      sort: sortKey || 'created_at',
+      sort_direction: sortDirection || 'desc'
+    });
+  };
 
   const [isOpen, setIsOpen] = useState(false);
   const [editingDriver, setEditingDriver] = useState(null);
@@ -183,7 +201,11 @@ export const DriverList = () => {
       ) : (
         <Table
           columns={columns}
-          data={drivers}
+          data={drivers || []}
+          serverPagination={true}
+          totalRows={drivers?.meta?.total || (drivers || []).length}
+          onFetchData={handleFetchData}
+          initialPageSize={25}
           searchPlaceholder="Search drivers by name, phone, status..."
           searchFields={['name', 'mobile', 'status', 'assignedVehicle']}
           onRowClick={(row) => navigate(`/drivers/${row.id}`)}

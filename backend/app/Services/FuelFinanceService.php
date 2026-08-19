@@ -5,13 +5,15 @@ namespace App\Services;
 use App\Models\FinanceLedger;
 use App\Models\FuelEntry;
 use App\Models\Trip;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Finance Integration.
  *
  * Every approved fuel entry automatically rolls into the trip's finance ledger
  * (diesel expense), which in turn drives total expenses, net profit, the finance
- * dashboard, reports and analytics. No manual synchronization required.
+ * dashboard, reports and analytics. Wrapped in DB transactions for atomicity and idempotency.
  */
 class FuelFinanceService
 {
@@ -22,29 +24,45 @@ class FuelFinanceService
     {
         if (!$entry->trip_id || !$entry->isApproved()) return;
 
-        $trip = Trip::with('financeLedger')->find($entry->trip_id);
-        if (!$trip) return;
+        DB::transaction(function () use ($entry) {
+            $trip = Trip::with('financeLedger')->find($entry->trip_id);
+            if (!$trip) return;
 
-        $this->syncTripDieselExpense($trip);
+            $this->syncTripDieselExpense($trip);
+        });
     }
 
     /**
      * Recompute the diesel expense for a trip from all approved fuel entries
-     * and refresh the derived ledger fields.
+     * and refresh the derived ledger fields inside an atomic transaction.
      */
     public function syncTripDieselExpense(Trip $trip): FinanceLedger
     {
-        $ledger = $trip->financeLedger ?? $this->createLedgerForTrip($trip);
+        return DB::transaction(function () use ($trip) {
+            $ledger = $trip->financeLedger ?? $this->createLedgerForTrip($trip);
 
-        $diesel = (float) $trip->approvedFuelEntries()->sum('total_cost');
+            // Recompute sum strictly from approved fuel entries to guarantee idempotency
+            $diesel = (float) $trip->approvedFuelEntries()->sum('total_cost');
 
-        $data = array_merge($ledger->toArray(), [
-            'diesel_expense' => round($diesel, 2),
-        ]);
+            // Idempotency check: if diesel expense is already equal, avoid unnecessary recalculations
+            if (abs((float)$ledger->diesel_expense - round($diesel, 2)) < 0.01) {
+                return $ledger;
+            }
 
-        $ledger->update($this->calculateFields($data));
+            $data = array_merge($ledger->toArray(), [
+                'diesel_expense' => round($diesel, 2),
+            ]);
 
-        return $ledger->refresh();
+            $ledger->update($this->calculateFields($data));
+
+            Log::info("Synced trip fuel finance ledger", [
+                'trip_id' => $trip->id,
+                'ledger_id' => $ledger->id,
+                'diesel_expense' => round($diesel, 2),
+            ]);
+
+            return $ledger->refresh();
+        });
     }
 
     public function createLedgerForTrip(Trip $trip): FinanceLedger

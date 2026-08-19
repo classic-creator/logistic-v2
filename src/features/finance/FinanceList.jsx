@@ -11,8 +11,26 @@ import { useForm } from 'react-hook-form';
 import { formatCurrency } from '../fuel/lib/fuelFormat';
 
 export const FinanceList = () => {
-  const { data: finances, isLoading } = useFinances();
+  const [queryParams, setQueryParams] = useState({
+    page: 1,
+    per_page: 25,
+    search: '',
+    sort: 'created_at',
+    sort_direction: 'desc'
+  });
+
+  const { data: finances, isLoading } = useFinances(queryParams);
   const updateFinanceMutation = useUpdateFinance();
+
+  const handleFetchData = ({ page, pageSize, search, sortKey, sortDirection }) => {
+    setQueryParams({
+      page,
+      per_page: pageSize,
+      search: search || '',
+      sort: sortKey || 'created_at',
+      sort_direction: sortDirection || 'desc'
+    });
+  };
 
   const [isOpen, setIsOpen] = useState(false);
   const [editingFinance, setEditingFinance] = useState(null);
@@ -238,7 +256,11 @@ export const FinanceList = () => {
       ) : (
         <Table
           columns={columns}
-          data={finances}
+          data={finances || []}
+          serverPagination={true}
+          totalRows={finances?.meta?.total || (finances || []).length}
+          onFetchData={handleFetchData}
+          initialPageSize={25}
           searchPlaceholder="Search ledger by invoice, trip, company..."
           searchFields={['invoiceNumber', 'tripId', 'companyName', 'status']}
         />

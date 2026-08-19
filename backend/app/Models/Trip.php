@@ -79,10 +79,24 @@ class Trip extends Model
 
     public function actualDistance(): float
     {
-        if ($this->start_odometer && $this->end_odometer) {
-            return max(0, (float) $this->end_odometer - (float) $this->start_odometer);
+        if ($this->actual_distance && (float)$this->actual_distance > 0) {
+            return (float) $this->actual_distance;
         }
-        return (float) ($this->distance ?? 0);
+        if ($this->start_odometer && $this->end_odometer && (float)$this->end_odometer > (float)$this->start_odometer) {
+            return (float) ($this->end_odometer - $this->start_odometer);
+        }
+        return (float) ($this->distance ?? $this->order?->route_distance_km ?? 0);
+    }
+
+    public function resolvedDistanceSource(): string
+    {
+        if (!empty($this->distance_source) && $this->distance_source !== 'planned') {
+            return $this->distance_source;
+        }
+        if ($this->start_odometer && $this->end_odometer && (float)$this->end_odometer > (float)$this->start_odometer) {
+            return 'odometer';
+        }
+        return 'planned';
     }
 
     public function actualFuelLiters(): float

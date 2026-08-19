@@ -27,6 +27,7 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('drivers', DriverController::class);
         Route::apiResource('orders', OrderController::class);
         Route::apiResource('trips', TripController::class);
+        Route::post('/trips/parse-document', [\App\Http\Controllers\DocumentReaderController::class, 'parseTransportDocument']);
         Route::apiResource('finances', FinanceLedgerController::class);
 
         // --- Fuel Intelligence System ---
@@ -57,6 +58,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/predict', [FuelIntelligenceController::class, 'predictOnDemand']);
             Route::post('/recommend', [FuelIntelligenceController::class, 'recommendOnDemand']);
             Route::get('/anomalies', [FuelIntelligenceController::class, 'anomalyDashboard']);
+            Route::get('/data-health', [FuelIntelligenceController::class, 'dataHealth']);
             Route::get('/ml-status', [FuelIntelligenceController::class, 'mlModelStatus']);
             Route::post('/ml-retrain', [FuelIntelligenceController::class, 'mlRetrain']);
         });
