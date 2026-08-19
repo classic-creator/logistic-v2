@@ -364,6 +364,26 @@ export const Dashboard = () => {
         />
       </div>
 
+      {/* Live Vehicle Tracking Map */}
+      <div className="glass-panel rounded-xl p-5 border border-slate-800 flex flex-col h-[500px]">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-bold text-slate-100 font-display">Live Fleet Tracking</h3>
+            <p className="text-xs text-slate-500">Real-time GPS coordinates of active dispatches in transit</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+            </span>
+            <span className="text-xs font-bold text-emerald-400">LIVE</span>
+          </div>
+        </div>
+        <div className="flex-1 w-full rounded-xl overflow-hidden border border-slate-700 relative">
+          <LiveMap trips={trips} />
+        </div>
+      </div>
+
       {/* Fuel Intelligence Widgets */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-4 glass-panel rounded-xl p-5 border border-slate-800 space-y-4">
@@ -546,25 +566,7 @@ export const Dashboard = () => {
 
       </div>
 
-      {/* Live Vehicle Tracking Map */}
-      <div className="glass-panel rounded-xl p-5 border border-slate-800 flex flex-col h-[500px]">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h3 className="text-base font-bold text-slate-100 font-display">Live Fleet Tracking</h3>
-            <p className="text-xs text-slate-500">Real-time GPS coordinates of active dispatches in transit</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-            </span>
-            <span className="text-xs font-bold text-emerald-400">LIVE</span>
-          </div>
-        </div>
-        <div className="flex-1 w-full rounded-xl overflow-hidden border border-slate-700 relative">
-          <LiveMap trips={trips} />
-        </div>
-      </div>
+
 
       {/* Bottom Layout: Alerts/Expirations & Recent Trips activity list */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
